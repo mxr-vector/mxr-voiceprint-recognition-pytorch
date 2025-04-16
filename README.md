@@ -26,6 +26,11 @@
  - Pytorch 2.4.0
  - Windows 11 or Ubuntu 22.04
 
+# 在线试用
+
+ - **[声纹对比](https://tools.yeyupiaoling.cn/speech/voiceprint_compare)**
+ - **[声纹识别](https://tools.yeyupiaoling.cn/speech/voiceprint_recognition)**
+
 # 目录
 
 - [项目介绍](#基于Pytorch实现的声纹识别系统)
