@@ -2,7 +2,6 @@ from typing import Union
 from fastapi import APIRouter, UploadFile, File, Form, Body, Query, Path
 from services.voiceprint_service import singleVoiceprintService
 from core.response import R
-from fastapi.responses import JSONResponse
 
 # 创建路由
 router = APIRouter(prefix="/model", tags=["OpenAPI - 声纹识别开放接口"])

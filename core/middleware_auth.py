@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 API_TOKEN = "voiceprint-open-api-token"
 
 # 可配置无需认证的路径
-EXCLUDE_PATHS = {"/", "/docs", "/openapi.json", "/favicon.ico"}
+EXCLUDE_PATHS = {"/", "/docs", "/openapi.json", "/favicon.ico", "/static"}
 
 
 class TokenAuthMiddleware(BaseHTTPMiddleware):

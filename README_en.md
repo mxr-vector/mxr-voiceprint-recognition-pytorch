@@ -423,16 +423,19 @@ about web structure:
 
 ```bash
 app/
-├─ main.py
-├─ core/
-│     ├─ response.py
-│     ├─ exception.py
-│     ├─ logger.py
-│     ├─ loader.py            # 自动扫描routers
-│     └─ middleware_request_id.py
-├─ routers/
-│     ├─ openapi.py
-│     └─ business.py
+├─ main.py # 启动文件
+├─ core/ # 最小核心模块
+│     ├─ response.py # 统一响应
+│     ├─ gobal_exception.py # 全局异常
+│     ├─ logger.py # 统一日志
+│     ├─ auto_import.py            # 自动扫描routers
+│     ├─ middleware_request_id.py # 分布式链路追踪id
+│     ├─ middleware_access_log.py # 访问日志中间件
+│     └─ middleware_auth.py # 认证中间件
+├─ routers/ # 全局路由
+│     ├─ index.py
+│     └─ model.py
+├─ service/ # 服务层业务处理
 └─ schemas/
 
 # quick start

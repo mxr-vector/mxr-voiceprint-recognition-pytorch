@@ -13,7 +13,7 @@ origins = ["http://localhost", "http://localhost:8000", "*"]
 
 app = FastAPI()
 # 挂载静态文件
-app.mount("/static", StaticFiles(directory="static", html=True), name="static")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 # 注册中间件
 app.add_middleware(RequestIDMiddleware)  # 请求ID
 app.add_middleware(AccessLogMiddleware)  # 访问日志
