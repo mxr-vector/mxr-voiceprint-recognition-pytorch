@@ -435,7 +435,7 @@ app/
 │     └─ business.py
 └─ schemas/
 
-# 启动
+# quick start
 # uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 uv run main.py
 ```
