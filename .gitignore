@@ -10,3 +10,9 @@ audio_db/
 output/
 models/
 feature_models/
+
+# Ignore VSCode settings
+.vscode/
+uv.lock
+.python-version
+.venv/

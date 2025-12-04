@@ -1,5 +1,7 @@
 [简体中文](./README.md) | English
 
+Add voiceprint comparison, voiceprint recognition, and speaker logs.based on [夜雨飘零](https://github.com/yeyupiaoling/VoiceprintRecognition-Pytorch) project.
+
 # Voiceprint recognition system based on Pytorch
 
 ![python version](https://img.shields.io/badge/python-3.8+-orange.svg)
@@ -10,16 +12,14 @@
 
 **Disclaimer, this document was obtained through machine translation, please check the original document [here](./README.md).**
 
-
 This branch is version 1.1, if you want to use the previous version 1.0 please [1.0 branch](https://github.com/yeyupiaoling/VoiceprintRecognition-Pytorch/tree/release/1.0.5). This project uses a variety of advanced voiceprint recognition models such as EcapaTdnn, ResNetSE, ERes2Net, CAM++, etc. It is not excluded that more models will be supported in the future. At the same time, this project also supports MelSpectrogram, Spectrogram, MFCC, Fbank and other data preprocessing methods, using ArcFace Loss, ArcFace loss: Additive Angular Margin Loss, corresponding to AAMLoss in the project, normalizes the feature vectors and weights, and adds an Angle margin m to θ. The Angle margin has a more direct effect on the Angle than the cosine margin. In addition, Various loss functions such as AMLoss, ARMLoss, CELoss are also supported.
-
 
 Environment：
 
- - Anaconda 3
- - Python 3.11
- - Pytorch 2.4.0
- - Windows 11 or Ubuntu 22.04
+- Anaconda 3
+- Python 3.11
+- Pytorch 2.4.0
+- Windows 11 or Ubuntu 22.04
 
 # Project Features
 
@@ -38,22 +38,21 @@ Environment：
 - CAMPPlus：[CAM++: A Fast and Efficient Network for Speaker Verification Using Context-Aware Masking](https://arxiv.org/abs/2303.00332v3)
 - ERes2Net：[An Enhanced Res2Net with Local and Global Feature Fusion for Speaker Verification](https://arxiv.org/abs/2305.12838v1)
 
-
 # Download Model
 
-|   Model    | Params(M) |              Dataset               | train speakers | threshold |   EER   | MinDCF  | 
-|:----------:|:---------:|:----------------------------------:|:--------------:|:---------:|:-------:|:-------:|
+|   Model    | Params(M) |              Dataset               | train speakers | threshold |   EER   | MinDCF  |
+| :--------: | :-------: | :--------------------------------: | :------------: | :-------: | :-----: | :-----: |
 | ERes2NetV2 |    6.6    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.20089  | 0.08071 | 0.45705 |
-|  ERes2Net  |    6.6    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.20014  | 0.08132 | 0.45544 | 
-|   CAM++    |    6.8    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.23323  | 0.08332 | 0.48536 | 
-|  ResNetSE  |    7.8    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.19066  | 0.08544 | 0.49142 | 
-| EcapaTdnn  |    6.1    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.23646  | 0.09259 | 0.51378 | 
-|    TDNN    |    2.6    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.23858  | 0.10825 | 0.59545 | 
-|  Res2Net   |    5.0    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.19526  | 0.12436 | 0.65347 | 
-|   CAM++    |    6.8    |               更大数据集                |      2W+       |   0.33    | 0.07874 | 0.52524 |
-|  ERes2Net  |   55.1    |               其他数据集                |      20W+      |   0.36    | 0.02936 | 0.18355 |
-| ERes2NetV2 |   56.2    |               其他数据集                |      20W+      |   0.36    | 0.03847 | 0.24301 |
-|   CAM++    |    6.8    |               其他数据集                |      20W+      |   0.29    | 0.04765 | 0.31436 |
+|  ERes2Net  |    6.6    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.20014  | 0.08132 | 0.45544 |
+|   CAM++    |    6.8    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.23323  | 0.08332 | 0.48536 |
+|  ResNetSE  |    7.8    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.19066  | 0.08544 | 0.49142 |
+| EcapaTdnn  |    6.1    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.23646  | 0.09259 | 0.51378 |
+|    TDNN    |    2.6    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.23858  | 0.10825 | 0.59545 |
+|  Res2Net   |    5.0    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.19526  | 0.12436 | 0.65347 |
+|   CAM++    |    6.8    |             更大数据集             |      2W+       |   0.33    | 0.07874 | 0.52524 |
+|  ERes2Net  |   55.1    |             其他数据集             |      20W+      |   0.36    | 0.02936 | 0.18355 |
+| ERes2NetV2 |   56.2    |             其他数据集             |      20W+      |   0.36    | 0.03847 | 0.24301 |
+|   CAM++    |    6.8    |             其他数据集             |      20W+      |   0.29    | 0.04765 | 0.31436 |
 
 Explain:
 
@@ -62,21 +61,20 @@ Explain:
 3. The preprocessing method used is `Fbank` and the loss function is `AAMLoss`.
 4. The number of parameters does not include the number of parameters of the classifier.
 
+### VoxCeleb1&2 数据
 
-### VoxCeleb1&2数据
-
-|     模型     | Params(M) |   Dataset   | train speakers | threshold |   EER   | MinDCF  |
-|:----------:|:---------:|:-----------:|:--------------:|:---------:|:-------:|:-------:|
+|    模型    | Params(M) |   Dataset   | train speakers | threshold |   EER   | MinDCF  |
+| :--------: | :-------: | :---------: | :------------: | :-------: | :-----: | :-----: |
 |   CAM++    |    6.8    | VoxCeleb1&2 |      7205      |   0.23    | 0.02659 | 0.18604 |
 |  ERes2Net  |    6.6    | VoxCeleb1&2 |      7205      |   0.23    | 0.03648 | 0.25508 |
 |  ResNetSE  |    7.8    | VoxCeleb1&2 |      7205      |           |         |         |
 | EcapaTdnn  |    6.1    | VoxCeleb1&2 |      7205      |           |         |         |
 |    TDNN    |    2.6    | VoxCeleb1&2 |      7205      |           |         |         |
 |  Res2Net   |    5.0    | VoxCeleb1&2 |      7205      |           |         |         |
-|   CAM++    |    6.8    |    更大数据集    |      2W+       |   0.28    | 0.03182 | 0.23731 |
-|  ERes2Net  |   55.1    |    其他数据集    |      20W+      |   0.53    | 0.08904 | 0.62130 |
-| ERes2NetV2 |   56.2    |    其他数据集    |      20W+      |   0.52    | 0.08649 | 0.64193 | 
-|   CAM++    |    6.8    |    其他数据集    |      20W+      |   0.49    | 0.10334 | 0.71200 |
+|   CAM++    |    6.8    | 更大数据集  |      2W+       |   0.28    | 0.03182 | 0.23731 |
+|  ERes2Net  |   55.1    | 其他数据集  |      20W+      |   0.53    | 0.08904 | 0.62130 |
+| ERes2NetV2 |   56.2    | 其他数据集  |      20W+      |   0.52    | 0.08649 | 0.64193 |
+|   CAM++    |    6.8    | 其他数据集  |      20W+      |   0.49    | 0.10334 | 0.71200 |
 
 Explain：
 
@@ -87,17 +85,16 @@ Explain：
 
 ### Effect comparison experiment of preprocessing methods
 
-|                               Preprocessing method                               | Dataset  | train speakers | threshold |   EER   | MinDCF  |  
-|:--------------------------------------------------------------------------------:|:--------:|:--------------:|:---------:|:-------:|:-------:|
-|                                      Fbank                                       | CN-Celeb |      2796      |  0.14574  | 0.10988 | 0.58955 | 
-|                                       MFCC                                       | CN-Celeb |      2796      |  0.14868  | 0.11483 | 0.61275 | 
+|                               Preprocessing method                               | Dataset  | train speakers | threshold |   EER   | MinDCF  |
+| :------------------------------------------------------------------------------: | :------: | :------------: | :-------: | :-----: | :-----: |
+|                                      Fbank                                       | CN-Celeb |      2796      |  0.14574  | 0.10988 | 0.58955 |
+|                                       MFCC                                       | CN-Celeb |      2796      |  0.14868  | 0.11483 | 0.61275 |
 |                                   Spectrogram                                    | CN-Celeb |      2796      |  0.14962  | 0.11613 | 0.60057 |
 |                                  MelSpectrogram                                  | CN-Celeb |      2796      |  0.13458  | 0.12498 | 0.60741 |
-|           [w2v-bert-2.0](https://huggingface.co/facebook/w2v-bert-2.0)           | CN-Celeb |      2796      |           |         |         | 
-| [wav2vec2-large-xlsr-53](https://huggingface.co/facebook/wav2vec2-large-xlsr-53) | CN-Celeb |      2796      |           |         |         | 
-|       [wavlm-base-plus](https://huggingface.co/microsoft/wavlm-base-plus)        | CN-Celeb |      2796      |           |         |         | 
-|           [wavlm-large](https://huggingface.co/microsoft/wavlm-large)            | CN-Celeb |      2796      |           |         |         | 
-
+|           [w2v-bert-2.0](https://huggingface.co/facebook/w2v-bert-2.0)           | CN-Celeb |      2796      |           |         |         |
+| [wav2vec2-large-xlsr-53](https://huggingface.co/facebook/wav2vec2-large-xlsr-53) | CN-Celeb |      2796      |           |         |         |
+|       [wavlm-base-plus](https://huggingface.co/microsoft/wavlm-base-plus)        | CN-Celeb |      2796      |           |         |         |
+|           [wavlm-large](https://huggingface.co/microsoft/wavlm-large)            | CN-Celeb |      2796      |           |         |         |
 
 Explain：
 
@@ -105,12 +102,10 @@ Explain：
 2. The experimental data is [CN-Celeb](http://openslr.org/82/), the experimental model is `CAM++`, and loss function is `AAMLoss`.
 3. The data is pre-extracted using 'extract_features.py', which means no data augmentation is used for the audio during training.
 
-
 ### Loss function effect comparison experiment
 
-
-|   Preprocessing method   | Dataset  | train speakers | threshold |   EER   | MinDCF  | 
-|:------------------------:|:--------:|:--------------:|:---------:|:-------:|:-------:|
+|   Preprocessing method   | Dataset  | train speakers | threshold |   EER   | MinDCF  |
+| :----------------------: | :------: | :------------: | :-------: | :-----: | :-----: |
 |         AAMLoss          | CN-Celeb |      2796      |  0.14574  | 0.10988 | 0.58955 |
 |       SphereFace2        | CN-Celeb |      2796      |  0.20377  | 0.11309 | 0.61536 |
 | TripletAngularMarginLoss | CN-Celeb |      2796      |  0.28940  | 0.11749 | 0.63735 |
@@ -125,22 +120,24 @@ Explain：
 2. The experimental data is [CN-Celeb](http://openslr.org/82/), the experimental model is `CAM++`, and the preprocessing method is `Fbank`.
 3. The data is pre-extracted using 'extract_features.py', which means no data augmentation is used for the audio during training.
 
-
 ## Installation Environment
 
- - The GPU version of Pytorch will be installed first, please skip it if you already have it installed.
+- The GPU version of Pytorch will be installed first, please skip it if you already have it installed.
+
 ```shell
 conda install pytorch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 pytorch-cuda=11.8 -c pytorch -c nvidia
 ```
 
- - Install ppvector.
- 
+- Install ppvector.
+
 Install it using pip with the following command:
+
 ```shell
 python -m pip install mvector -U -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 **Source installation is recommended**, which ensures that the latest code is used.
+
 ```shell
 git clone https://github.com/yeyupiaoling/VoiceprintRecognition_Pytorch.git
 cd VoiceprintRecognition_Pytorch/
@@ -148,16 +145,19 @@ python setup.py install
 ```
 
 # Create Data
+
 The author used [CN-Celeb](https://openslr.elda.org/resources/82) for this tutorial. This dataset has a total of about 3000 people's voice data, and there are 65W+ voice data. After downloading, you need to unzip the dataset to the 'dataset' directory. Also need to download [CN-Celeb Test](https://aistudio.baidu.com/aistudio/datasetdetail/233361). If you have other better datasets, you can mix them up, but it's best to use python's aukit tool module for audio processing, noise reduction, and de-muting.
 
 The format of the data list is `<voice_file_path\tspeech_classification_label>`. The creation of this list is mainly for the convenience of later reading, but also for the convenience of reading and using other speech data sets. Speech classification label refers to the unique ID of the speaker. Put these data sets in the same data list.
 
 Execute `create_data.py` to prepare the data.
+
 ```shell
 python create_data.py
 ```
 
 After executing the above program, the following data format will be generated, and if you want to customize the data, refer to the following list of data, which is preceded by the relative path of the audio and followed by the label of the speaker for that audio, just like classification. **A note on custom datasets**, the test list ID doesn't have to be the same as the training ID, meaning the test speaker doesn't have to be in the training set, just make sure the test list has the same ID for the same person.
+
 ```
 dataset/CN-Celeb2_flac/data/id11999/recitation-03-019.flac      2795
 dataset/CN-Celeb2_flac/data/id11999/recitation-10-023.flac      2795
@@ -186,7 +186,7 @@ preprocess_conf:
   # 音频预处理方法，也可以叫特征提取方法
   # 当use_hf_model为False时，支持：MelSpectrogram、Spectrogram、MFCC、Fbank
   # 当use_hf_model为True时，指定的是HuggingFace的模型或者本地路径，比如facebook/w2v-bert-2.0或者./feature_models/w2v-bert-2.0
-  feature_method: 'Fbank'
+  feature_method: "Fbank"
   # 当use_hf_model为False时，设置API参数，更参数查看对应API，不清楚的可以直接删除该部分，直接使用默认值。
   # 当use_hf_model为True时，可以设置参数use_gpu，指定是否使用GPU提取特征
   method_args:
@@ -197,6 +197,7 @@ preprocess_conf:
 # Train
 
 Using `train.py` to train the model, this project supports multiple audio preprocessing methods, which can be specified by the `preprocess_conf.feature_method` parameter in the `configs/ecapa_tdnn.yml` configuration file. `MelSpectrogram` for MEL spectrum, `Spectrogram` for spectrogram, `MFCC` for MEL spectrum cepstral coefficient, etc. The data augmentation can be specified using the `augment_conf_path` argument. During the training process, VisualDL will be used to save the training logs. You can view the training results at any time by starting VisualDL with the command `visualdl --logdir=log --host 0.0.0.0`
+
 ```shell
 # Single GPU training
 CUDA_VISIBLE_DEVICES=0 python train.py
@@ -205,6 +206,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --standalone --nnodes=1 --nproc_per_node=2 tra
 ```
 
 Train log:
+
 ```
 [2023-08-05 09:52:06.497988 INFO   ] utils:print_arguments:13 - ----------- 额外配置参数 -----------
 [2023-08-05 09:52:06.498094 INFO   ] utils:print_arguments:15 - configs: configs/ecapa_tdnn.yml
@@ -329,15 +331,16 @@ Estimated Total Size (MB): 42.44
 VisualDL：
 ![VisualDL页面](./docs/images/log.jpg)
 
-
-
 # Eval
+
 After training, the prediction model will be saved, and we will use the prediction model to predict the audio features in the test set, and then use the audio features for pairwise comparison to calculate EER and MinDCF.
+
 ```shell
 python eval.py
 ```
 
 The output will look like this:
+
 ```
 ······
 ------------------------------------------------
@@ -350,14 +353,16 @@ W0425 08:27:32.065165 17654 device_context.cc:465] device: 0, cuDNN Version: 7.6
 评估消耗时间：65s，threshold：0.26，EER: 0.14739, MinDCF: 0.41999
 ```
 
-# Voiceprint Contrast 
+# Voiceprint Contrast
 
 Let's start implementing the voiceprint comparison, create the `infer_contrast.py` program, and write the `infer()` function. When we write the model, the model will have two outputs, the first is the classification output of the model, and the second is the audio feature output. So the output here is the characteristic value of audio, with the characteristic value of audio, you can do voiceprint recognition. We input two voices and get their feature data through the prediction function. Using this feature data, we can find their diagonal cosine value, and the result can be used as their acquaintance degree. This familiarity threshold `threshold` can be modified according to the accuracy requirements of your project.
+
 ```shell
 python infer_contrast.py --audio_path1=audio/a_1.wav --audio_path2=audio/b_2.wav
 ```
 
 The output will look like this:
+
 ```
 [2023-04-02 18:30:48.009149 INFO   ] utils:print_arguments:13 - ----------- 额外配置参数 -----------
 [2023-04-02 18:30:48.009149 INFO   ] utils:print_arguments:15 - audio_path1: dataset/a_1.wav
@@ -378,11 +383,13 @@ audio/a_1.wav 和 audio/b_2.wav 不是同一个人，相似度为：-0.095655441
 
 Based on the above voiceprint comparison, we create `infer_recognition.py` for voiceprint recognition. We use the same `infer()` prediction function from the voiceprint comparison above to get the speech feature data from both of them. The difference is that the author added `load_audio_db()` and `register()`, and `recognition()`. The first function is to load the speech data in the voiceprint library. These audio are equivalent to registered users, and their registered speech data will be stored here. If a user needs to log in through voiceprint, it is necessary to get the user's voice and the voice in the speech database for voiceprint comparison. If the comparison is successful, it is equivalent to successful login and obtain the information data of the user registration. The second function, `register()`, saves the recording to the voiceprint library and takes the features of the audio and adds them to the data features to be compared. Finally, the `recognition()` function compares the input speech to the speech in the database.
 With the function of voiceprint recognition above, readers can complete the voiceprint recognition according to the needs of their own projects. For example, the following is provided by the author to complete the voiceprint recognition through recording. First of all, we must load the speech in the speech library, the speech library folder is `audio_db`, and then record for 3 seconds after the user enters the car, and then the program will automatically record, and use the recorded audio for voiceprint recognition to match the speech in the speech library and obtain the user's information. In this way, the reader can also modify to complete the voiceprint recognition through the service request, for example, provide an API for the APP to call, the user logs in through the voiceprint on the APP, send the recorded voice to the back-end to complete the voiceprint recognition, and then return the result to the APP, provided that the user has registered with the voice, And successfully stored the speech data in the `audio_db` folder.
+
 ```shell
 python infer_recognition.py
 ```
 
 The output will look like this:
+
 ```
 [2023-04-02 18:31:20.521040 INFO   ] utils:print_arguments:13 - ----------- 额外配置参数 -----------
 [2023-04-02 18:31:20.521040 INFO   ] utils:print_arguments:15 - audio_db_path: audio_db/
@@ -410,13 +417,58 @@ Loaded 李达康 audio.
 识别说话的为：夜雨飘零，相似度为：0.920434
 ```
 
-# Other Versions
- - Tensorflow：[VoiceprintRecognition-Tensorflow](https://github.com/yeyupiaoling/VoiceprintRecognition-Tensorflow)
- - PaddlePaddle：[VoiceprintRecognition-PaddlePaddle](https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle)
- - Keras：[VoiceprintRecognition-Keras](https://github.com/yeyupiaoling/VoiceprintRecognition-Keras)
+# Web Service
 
+about web structure:
+
+```bash
+app/
+├─ main.py
+├─ core/
+│     ├─ response.py
+│     ├─ exception.py
+│     ├─ logger.py
+│     ├─ loader.py            # 自动扫描routers
+│     └─ middleware_request_id.py
+├─ routers/
+│     ├─ openapi.py
+│     └─ business.py
+└─ schemas/
+
+# 启动
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+attention，Please annotate the assertions in the following code:
+.venv\Lib\site-packages\yeaudio\audio.py
+Otherwise, audio files of the SpooledTemporaryFile type based on FastAPI cannot be recognized.
+
+```python
+    def from_file(cls, file):
+        """从音频文件创建音频段，支持wav、mp3、mp4等多种音频格式
+
+        :param file: 文件路径，或者文件对象
+        :type file: str, BufferedReader
+        :return: 音频片段实例
+        :rtype: AudioSegment
+        """
+        # assert os.path.exists(file), f'文件不存在，请检查路径：{file}'
+        try:
+            samples, sample_rate = soundfile.read(file, dtype='float32')
+        except:
+            # 支持更多格式数据
+            samples, sample_rate = decode_audio(file=file)
+        return cls(samples, sample_rate)
+```
+
+# Other Versions
+
+- Tensorflow：[VoiceprintRecognition-Tensorflow](https://github.com/yeyupiaoling/VoiceprintRecognition-Tensorflow)
+- PaddlePaddle：[VoiceprintRecognition-PaddlePaddle](https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle)
+- Keras：[VoiceprintRecognition-Keras](https://github.com/yeyupiaoling/VoiceprintRecognition-Keras)
 
 # Reference
+
 1. https://github.com/PaddlePaddle/PaddleSpeech
 2. https://github.com/yeyupiaoling/PaddlePaddle-MobileFaceNets
 3. https://github.com/yeyupiaoling/PPASR

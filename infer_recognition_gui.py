@@ -16,7 +16,7 @@ from mvector.utils.utils import add_arguments, print_arguments
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('configs',          str,    'configs/cam++.yml',   '配置文件')
-add_arg('use_gpu',          bool,   True,                       '是否使用GPU预测')
+add_arg('use_gpu',          bool,   False,                       '是否使用GPU预测')
 add_arg('audio_db_path',    str,    'audio_db/',                '音频库的路径')
 add_arg('model_path',       str,    'models/CAMPPlus_Fbank/best_model/', '导出的预测模型文件路径')
 args = parser.parse_args()
@@ -26,7 +26,7 @@ print_arguments(args=args)
 class VoiceRecognitionGUI:
     def __init__(self, master):
         self.master = master
-        master.title("夜雨飘零声纹识别系统")
+        master.title("声纹识别系统")
         master.geometry('600x500')
         master.resizable(True, True)
         master.configure(bg='#f0f0f0')
@@ -70,7 +70,7 @@ class VoiceRecognitionGUI:
         # 录音长度标签和输入框
         self.record_seconds_label = ttk.Label(self.settings_frame, text="录音长度(秒):")
         self.record_seconds_label.grid(row=0, column=0, sticky="w", padx=(0, 10), pady=5)
-        self.record_seconds = tk.StringVar(value='3')
+        self.record_seconds = tk.StringVar(value='10')
         self.record_seconds_entry = ttk.Entry(self.settings_frame, width=15, textvariable=self.record_seconds)
         self.record_seconds_entry.grid(row=0, column=1, sticky="w", pady=5)
         
@@ -206,7 +206,7 @@ class VoiceRecognitionGUI:
                 self.recording_thread.join()
             
             # 从队列获取录音结果
-            success, result = self.audio_queue.get(timeout=5)
+            success, result = self.audio_queue.get(timeout=10)
             
             if success:
                 self.result_label.config(text="录音完成")

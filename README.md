@@ -1,6 +1,8 @@
 简体中文 | [English](./README_en.md)
 
-# 基于Pytorch实现的声纹识别系统
+基于 [夜雨飘零](https://github.com/yeyupiaoling/VoiceprintRecognition-Pytorch) 项目，新增 Web 端声纹对比、声纹识别、说话人日志。
+
+# 基于 Pytorch 实现的声纹识别系统
 
 ![python version](https://img.shields.io/badge/python-3.8+-orange.svg)
 ![GitHub forks](https://img.shields.io/github/forks/yeyupiaoling/VoiceprintRecognition-Pytorch)
@@ -8,11 +10,11 @@
 ![GitHub](https://img.shields.io/github/license/yeyupiaoling/VoiceprintRecognition-Pytorch)
 ![支持系统](https://img.shields.io/badge/支持系统-Win/Linux/MAC-9cf)
 
-本分支为1.1版本，如果要使用之前的1.0版本请在[1.0分支](https://github.com/yeyupiaoling/VoiceprintRecognition-Pytorch/tree/release/1.0.5)使用。本项目使用了EcapaTdnn、ResNetSE、ERes2Net、CAM++等多种先进的声纹识别模型，不排除以后会支持更多模型，同时本项目也支持了MelSpectrogram、Spectrogram、MFCC、Fbank等多种数据预处理方法，使用了ArcFace Loss，ArcFace loss：Additive Angular Margin Loss（加性角度间隔损失函数），对应项目中的AAMLoss，对特征向量和权重归一化，对θ加上角度间隔m，角度间隔比余弦间隔在对角度的影响更加直接，除此之外，还支持AMLoss、ARMLoss、CELoss等多种损失函数。
+本分支为 1.1 版本，如果要使用之前的 1.0 版本请在[1.0 分支](https://github.com/yeyupiaoling/VoiceprintRecognition-Pytorch/tree/release/1.0.5)使用。本项目使用了 EcapaTdnn、ResNetSE、ERes2Net、CAM++等多种先进的声纹识别模型，不排除以后会支持更多模型，同时本项目也支持了 MelSpectrogram、Spectrogram、MFCC、Fbank 等多种数据预处理方法，使用了 ArcFace Loss，ArcFace loss：Additive Angular Margin Loss（加性角度间隔损失函数），对应项目中的 AAMLoss，对特征向量和权重归一化，对 θ 加上角度间隔 m，角度间隔比余弦间隔在对角度的影响更加直接，除此之外，还支持 AMLoss、ARMLoss、CELoss 等多种损失函数。
 
-**本项目是如果对你有帮助，欢迎Star，避免之后需要找不到了。**
+**本项目是如果对你有帮助，欢迎 Star，避免之后需要找不到了。**
 
-**欢迎大家扫码入知识星球或者QQ群讨论，知识星球里面提供项目的模型文件和博主其他相关项目的模型文件，也包括其他一些资源。**
+**欢迎大家扫码入知识星球或者 QQ 群讨论，知识星球里面提供项目的模型文件和博主其他相关项目的模型文件，也包括其他一些资源。**
 
 <div align="center">
   <img src="https://yeyupiaoling.cn/zsxq.png" alt="知识星球" width="400">
@@ -21,17 +23,16 @@
 
 使用环境：
 
- - Anaconda 3
- - Python 3.11
- - Pytorch 2.4.0
- - Windows 11 or Ubuntu 22.04
+- Anaconda 3
+- Python 3.11
+- Pytorch 2.4.0
+- Windows 11 or Ubuntu 22.04
 
 # 在线试用
 
- - **网页版：[声纹对比](https://tools.yeyupiaoling.cn/speech/voiceprint_compare)**
- - **网页版：[声纹识别](https://tools.yeyupiaoling.cn/speech/voiceprint_recognition)**
- - **网页版：[说话人日志](https://tools.yeyupiaoling.cn/speech/speaker_diarization)**
-
+- **网页版：[声纹对比](https://tools.yeyupiaoling.cn/speech/voiceprint_compare)**
+- **网页版：[声纹识别](https://tools.yeyupiaoling.cn/speech/voiceprint_recognition)**
+- **网页版：[说话人日志](https://tools.yeyupiaoling.cn/speech/speaker_diarization)**
 
 <div align="center">
   <img src="https://tools.yeyupiaoling.cn/static/wechat-qr/voiceprint-compare.jpg" alt="微信小程序" width="200">&nbsp&nbsp
@@ -39,8 +40,6 @@
   <img src="https://tools.yeyupiaoling.cn/static/wechat-qr/speaker-diarization.jpg" alt="微信小程序" width="200"><br/>
   声纹对比微信小程序   &nbsp &nbsp &nbsp &nbsp  声纹识别微信小程序     &nbsp &nbsp &nbsp &nbsp   说话人日志微信小程序
 </div>
-
-
 
 # 目录
 
@@ -58,10 +57,9 @@
 - [声纹识别](#声纹识别)
 - [说话人日志（分离说话人）](#说话人日志分离说话人)
 
-
 # 项目记录
 
-1. 2024.10.12：发布1.1版本。
+1. 2024.10.12：发布 1.1 版本。
 
 # 项目特性
 
@@ -70,7 +68,6 @@
 3. 支持损失函数：AAMLoss、SphereFace2、AMLoss、ARMLoss、CELoss、SubCenterLoss、TripletAngularMarginLoss
 4. 支持预处理方法：MelSpectrogram、Spectrogram、MFCC、Fbank、Wav2vec2.0、WavLM
 5. 支持数据增强方法：语速增强、音量增强、噪声增强、混响增强、SpecAugment
-
 
 **模型论文：**
 
@@ -82,13 +79,12 @@
 - CAMPPlus：[CAM++: A Fast and Efficient Network for Speaker Verification Using Context-Aware Masking](https://arxiv.org/abs/2303.00332v3)
 - ERes2Net：[An Enhanced Res2Net with Local and Global Feature Fusion for Speaker Verification](https://arxiv.org/abs/2305.12838v1)
 
-
 # 模型下载
 
-### 训练CN-Celeb数据，共有2796个说话人。
+### 训练 CN-Celeb 数据，共有 2796 个说话人。
 
-|     模型     | Params(M) |                数据集                 | train speakers | threshold |   EER   | MinDCF  |   模型下载   |
-|:----------:|:---------:|:----------------------------------:|:--------------:|:---------:|:-------:|:-------:|:--------:|
+|    模型    | Params(M) |               数据集               | train speakers | threshold |   EER   | MinDCF  |     模型下载     |
+| :--------: | :-------: | :--------------------------------: | :------------: | :-------: | :-----: | :-----: | :--------------: |
 | ERes2NetV2 |    6.6    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.20089  | 0.08071 | 0.45705 | 加入知识星球获取 |
 |  ERes2Net  |    6.6    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.20014  | 0.08132 | 0.45544 | 加入知识星球获取 |
 |   CAM++    |    6.8    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.23323  | 0.08332 | 0.48536 | 加入知识星球获取 |
@@ -96,23 +92,23 @@
 | EcapaTdnn  |    6.1    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.23646  | 0.09259 | 0.51378 | 加入知识星球获取 |
 |    TDNN    |    2.6    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.23858  | 0.10825 | 0.59545 | 加入知识星球获取 |
 |  Res2Net   |    5.0    | [CN-Celeb](http://openslr.org/82/) |      2796      |  0.19526  | 0.12436 | 0.65347 | 加入知识星球获取 |
-|   CAM++    |    6.8    |               更大数据集                |      2W+       |   0.33    | 0.07874 | 0.52524 | 加入知识星球获取 |
-|  ERes2Net  |   55.1    |               其他数据集                |      20W+      |   0.36    | 0.02936 | 0.18355 | 加入知识星球获取 |
-| ERes2NetV2 |   56.2    |               其他数据集                |      20W+      |   0.36    | 0.03847 | 0.24301 | 加入知识星球获取 |
-|   CAM++    |    6.8    |               其他数据集                |      20W+      |   0.29    | 0.04765 | 0.31436 | 加入知识星球获取 |
+|   CAM++    |    6.8    |             更大数据集             |      2W+       |   0.33    | 0.07874 | 0.52524 | 加入知识星球获取 |
+|  ERes2Net  |   55.1    |             其他数据集             |      20W+      |   0.36    | 0.02936 | 0.18355 | 加入知识星球获取 |
+| ERes2NetV2 |   56.2    |             其他数据集             |      20W+      |   0.36    | 0.03847 | 0.24301 | 加入知识星球获取 |
+|   CAM++    |    6.8    |             其他数据集             |      20W+      |   0.29    | 0.04765 | 0.31436 | 加入知识星球获取 |
 
 说明：
-1. 评估的测试集为[CN-Celeb的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)，包含196个说话人。
+
+1. 评估的测试集为[CN-Celeb 的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)，包含 196 个说话人。
 2. 使用语速增强分类大小翻三倍`speed_perturb_3_class: True`。
 3. 使用的预处理方法为`Fbank`，损失函数为`AAMLoss`。
 4. 参数数量不包含了分类器的参数数量。
 5. 使用了噪声增强和混响增强。
 
+### 训练 VoxCeleb1&2 数据，共有 7205 个说话人。
 
-### 训练VoxCeleb1&2数据，共有7205个说话人。
-
-|     模型     | Params(M) |     数据集     | train speakers | threshold |   EER   | MinDCF  |   模型下载   |
-|:----------:|:---------:|:-----------:|:--------------:|:---------:|:-------:|:-------:|:--------:|
+|    模型    | Params(M) |   数据集    | train speakers | threshold |   EER   | MinDCF  |     模型下载     |
+| :--------: | :-------: | :---------: | :------------: | :-------: | :-----: | :-----: | :--------------: |
 |   CAM++    |    6.8    | VoxCeleb1&2 |      7205      |  0.22504  | 0.02436 | 0.15543 | 加入知识星球获取 |
 | EcapaTdnn  |    6.1    | VoxCeleb1&2 |      7205      |  0.24877  | 0.02480 | 0.16188 | 加入知识星球获取 |
 | ERes2NetV2 |    6.6    | VoxCeleb1&2 |      7205      |  0.20710  | 0.02742 | 0.17709 | 加入知识星球获取 |
@@ -120,23 +116,22 @@
 |  ResNetSE  |    7.8    | VoxCeleb1&2 |      7205      |  0.22567  | 0.03189 | 0.23040 | 加入知识星球获取 |
 |    TDNN    |    2.6    | VoxCeleb1&2 |      7205      |  0.23834  | 0.03486 | 0.26792 | 加入知识星球获取 |
 |  Res2Net   |    5.0    | VoxCeleb1&2 |      7205      |  0.19472  | 0.04370 | 0.40072 | 加入知识星球获取 |
-|   CAM++    |    6.8    |    更大数据集    |      2W+       |   0.28    | 0.03182 | 0.23731 | 加入知识星球获取 |
-|  ERes2Net  |   55.1    |    其他数据集    |      20W+      |   0.53    | 0.08904 | 0.62130 | 加入知识星球获取 |
-| ERes2NetV2 |   56.2    |    其他数据集    |      20W+      |   0.52    | 0.08649 | 0.64193 | 加入知识星球获取 |
-|   CAM++    |    6.8    |    其他数据集    |      20W+      |   0.49    | 0.10334 | 0.71200 | 加入知识星球获取 |
+|   CAM++    |    6.8    | 更大数据集  |      2W+       |   0.28    | 0.03182 | 0.23731 | 加入知识星球获取 |
+|  ERes2Net  |   55.1    | 其他数据集  |      20W+      |   0.53    | 0.08904 | 0.62130 | 加入知识星球获取 |
+| ERes2NetV2 |   56.2    | 其他数据集  |      20W+      |   0.52    | 0.08649 | 0.64193 | 加入知识星球获取 |
+|   CAM++    |    6.8    | 其他数据集  |      20W+      |   0.49    | 0.10334 | 0.71200 | 加入知识星球获取 |
 
 说明：
 
-1. 评估的测试集为[VoxCeleb1&2的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/255977)，包含158个说话人。
+1. 评估的测试集为[VoxCeleb1&2 的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/255977)，包含 158 个说话人。
 2. 使用语速增强分类大小翻三倍`speed_perturb_3_class: True`。
 3. 使用的预处理方法为`Fbank`，损失函数为`AAMLoss`。
 4. 参数数量不包含了分类器的参数数量。
 
-
 ### 预处理方法效果对比实验
 
-|                                      预处理方法                                       |   数据集    | train speakers | threshold |   EER   | MinDCF  |   模型下载   |
-|:--------------------------------------------------------------------------------:|:--------:|:--------------:|:---------:|:-------:|:-------:|:--------:|
+|                                    预处理方法                                    |  数据集  | train speakers | threshold |   EER   | MinDCF  |     模型下载     |
+| :------------------------------------------------------------------------------: | :------: | :------------: | :-------: | :-----: | :-----: | :--------------: |
 |                                      Fbank                                       | CN-Celeb |      2796      |  0.14574  | 0.10988 | 0.58955 | 加入知识星球获取 |
 |                                       MFCC                                       | CN-Celeb |      2796      |  0.14868  | 0.11483 | 0.61275 | 加入知识星球获取 |
 |                                   Spectrogram                                    | CN-Celeb |      2796      |  0.14962  | 0.11613 | 0.60057 | 加入知识星球获取 |
@@ -148,16 +143,15 @@
 
 说明：
 
-1. 评估的测试集为[CN-Celeb的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)，包含196个说话人。
+1. 评估的测试集为[CN-Celeb 的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)，包含 196 个说话人。
 2. 实验数据为[CN-Celeb](http://openslr.org/82/)，实验模型为`CAM++`，损失函数为`AAMLoss`。
 3. 数据使用`extract_features.py`提前提取特征，也就是说训练中没有使用对音频的数据增强。
 4. `w2v-bert-2.0`、`wav2vec2-large-xlsr-53`是多语言数据预训练得到的，`wavlm-base-plus`、`wavlm-large`的预训练数据仅用英文。
 
-
 ### 损失函数效果对比实验
 
-|           损失函数           |   数据集    | train speakers | threshold |   EER   | MinDCF  |   模型下载   |
-|:------------------------:|:--------:|:--------------:|:---------:|:-------:|:-------:|:--------:|
+|         损失函数         |  数据集  | train speakers | threshold |   EER   | MinDCF  |     模型下载     |
+| :----------------------: | :------: | :------------: | :-------: | :-----: | :-----: | :--------------: |
 |         AAMLoss          | CN-Celeb |      2796      |  0.14574  | 0.10988 | 0.58955 | 加入知识星球获取 |
 |       SphereFace2        | CN-Celeb |      2796      |  0.20377  | 0.11309 | 0.61536 | 加入知识星球获取 |
 | TripletAngularMarginLoss | CN-Celeb |      2796      |  0.28940  | 0.11749 | 0.63735 | 加入知识星球获取 |
@@ -168,26 +162,28 @@
 
 说明：
 
-1. 评估的测试集为[CN-Celeb的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)，包含196个说话人。
+1. 评估的测试集为[CN-Celeb 的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)，包含 196 个说话人。
 2. 实验数据为[CN-Celeb](http://openslr.org/82/)，实验模型为`CAM++`，预处理方法为`Fbank`。
 3. 数据使用`extract_features.py`提前提取特征，也就是说训练中没有使用对音频的数据增强。
 
-
 ## 安装环境
 
- - 首先安装的是Pytorch的GPU版本，如果已经安装过了，请跳过。
+- 首先安装的是 Pytorch 的 GPU 版本，如果已经安装过了，请跳过。
+
 ```shell
 conda install pytorch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 pytorch-cuda=11.8 -c pytorch -c nvidia
 ```
 
- - 安装ppvector库。
- 
-使用pip安装，命令如下：
+- 安装 ppvector 库。
+
+使用 pip 安装，命令如下：
+
 ```shell
 python -m pip install mvector -U -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 **建议源码安装**，源码安装能保证使用最新代码。
+
 ```shell
 git clone https://github.com/yeyupiaoling/VoiceprintRecognition-Pytorch.git
 cd VoiceprintRecognition-Pytorch/
@@ -195,16 +191,19 @@ pip install .
 ```
 
 # 创建数据
-本教程笔者使用的是[CN-Celeb](https://openslr.elda.org/resources/82)，这个数据集一共有约3000个人的语音数据，有65W+条语音数据，下载之后要解压数据集到`dataset`目录，另外如果要评估，还需要下载[CN-Celeb的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)。如果读者有其他更好的数据集，可以混合在一起使用，但最好是要用python的工具模块aukit处理音频，降噪和去除静音。
 
-首先是创建一个数据列表，数据列表的格式为`<语音文件路径\t语音分类标签>`，创建这个列表主要是方便之后的读取，也是方便读取使用其他的语音数据集，语音分类标签是指说话人的唯一ID，不同的语音数据集，可以通过编写对应的生成数据列表的函数，把这些数据集都写在同一个数据列表中。
+本教程笔者使用的是[CN-Celeb](https://openslr.elda.org/resources/82)，这个数据集一共有约 3000 个人的语音数据，有 65W+条语音数据，下载之后要解压数据集到`dataset`目录，另外如果要评估，还需要下载[CN-Celeb 的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)。如果读者有其他更好的数据集，可以混合在一起使用，但最好是要用 python 的工具模块 aukit 处理音频，降噪和去除静音。
+
+首先是创建一个数据列表，数据列表的格式为`<语音文件路径\t语音分类标签>`，创建这个列表主要是方便之后的读取，也是方便读取使用其他的语音数据集，语音分类标签是指说话人的唯一 ID，不同的语音数据集，可以通过编写对应的生成数据列表的函数，把这些数据集都写在同一个数据列表中。
 
 执行`create_data.py`程序完成数据准备。
+
 ```shell
 python create_data.py
 ```
 
-执行上面的程序之后，会生成以下的数据格式，如果要自定义数据，参考如下数据列表，前面是音频的相对路径，后面的是该音频对应的说话人的标签，就跟分类一样。**自定义数据集的注意**，测试数据列表的ID可以不用跟训练的ID一样，也就是说测试的数据的说话人可以不用出现在训练集，只要保证测试数据列表中同一个人相同的ID即可。
+执行上面的程序之后，会生成以下的数据格式，如果要自定义数据，参考如下数据列表，前面是音频的相对路径，后面的是该音频对应的说话人的标签，就跟分类一样。**自定义数据集的注意**，测试数据列表的 ID 可以不用跟训练的 ID 一样，也就是说测试的数据的说话人可以不用出现在训练集，只要保证测试数据列表中同一个人相同的 ID 即可。
+
 ```
 dataset/CN-Celeb2_flac/data/id11999/recitation-03-019.flac      2795
 dataset/CN-Celeb2_flac/data/id11999/recitation-10-023.flac      2795
@@ -223,7 +222,7 @@ dataset/CN-Celeb2_flac/data/id11999/recitation-05-010.flac      2795
 
 # 修改预处理方法（可选）
 
-配置文件中默认使用的是Fbank预处理方法，如果要使用其他预处理方法，可以修改配置文件中的安装下面方式修改，具体的值可以根据自己情况修改。如果不清楚如何设置参数，可以直接删除该部分，直接使用默认值。
+配置文件中默认使用的是 Fbank 预处理方法，如果要使用其他预处理方法，可以修改配置文件中的安装下面方式修改，具体的值可以根据自己情况修改。如果不清楚如何设置参数，可以直接删除该部分，直接使用默认值。
 
 ```yaml
 # 数据预处理参数
@@ -233,7 +232,7 @@ preprocess_conf:
   # 音频预处理方法，也可以叫特征提取方法
   # 当use_hf_model为False时，支持：MelSpectrogram、Spectrogram、MFCC、Fbank
   # 当use_hf_model为True时，指定的是HuggingFace的模型或者本地路径，比如facebook/w2v-bert-2.0或者./feature_models/w2v-bert-2.0
-  feature_method: 'Fbank'
+  feature_method: "Fbank"
   # 当use_hf_model为False时，设置API参数，更参数查看对应API，不清楚的可以直接删除该部分，直接使用默认值。
   # 当use_hf_model为True时，可以设置参数use_gpu，指定是否使用GPU提取特征
   method_args:
@@ -253,9 +252,10 @@ python extract_features.py --configs=configs/cam++.yml --save_dir=dataset/featur
 
 2. 修改配置文件，将`dataset_conf.train_list`、`dataset_conf.enroll_list`和`dataset_conf.trials_list`修改为`train_list_features.txt`、`enroll_list_features.txt`和`trials_list_features.txt`。
 
-
 # 训练模型
-使用`train.py`训练模型，本项目支持多个音频预处理方式，通过`configs/ecapa_tdnn.yml`配置文件的参数`preprocess_conf.feature_method`可以指定，`MelSpectrogram`为梅尔频谱，`Spectrogram`为语谱图，`MFCC`梅尔频谱倒谱系数等等。通过参数`augment_conf_path`可以指定数据增强方式。训练过程中，会使用VisualDL保存训练日志，通过启动VisualDL可以随时查看训练结果，启动命令`visualdl --logdir=log --host 0.0.0.0`
+
+使用`train.py`训练模型，本项目支持多个音频预处理方式，通过`configs/ecapa_tdnn.yml`配置文件的参数`preprocess_conf.feature_method`可以指定，`MelSpectrogram`为梅尔频谱，`Spectrogram`为语谱图，`MFCC`梅尔频谱倒谱系数等等。通过参数`augment_conf_path`可以指定数据增强方式。训练过程中，会使用 VisualDL 保存训练日志，通过启动 VisualDL 可以随时查看训练结果，启动命令`visualdl --logdir=log --host 0.0.0.0`
+
 ```shell
 # 单卡训练
 CUDA_VISIBLE_DEVICES=0 python train.py
@@ -264,6 +264,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --standalone --nnodes=1 --nproc_per_node=2 tra
 ```
 
 训练输出日志：
+
 ```
 [2023-08-05 09:52:06.497988 INFO   ] utils:print_arguments:13 - ----------- 额外配置参数 -----------
 [2023-08-05 09:52:06.498094 INFO   ] utils:print_arguments:15 - configs: configs/ecapa_tdnn.yml
@@ -385,20 +386,22 @@ Estimated Total Size (MB): 42.44
 [2023-08-05 09:53:45.439642 INFO   ] trainer:__train_epoch:334 - Train epoch: [1/30], batch: [700/13659], loss: 9.03548, accuracy: 0.01449, learning rate: 0.00099999, speed: 463.63 data/sec, eta: 15:41:08
 ```
 
-启动VisualDL：`visualdl --logdir=log --host 0.0.0.0`，VisualDL页面如下：
+启动 VisualDL：`visualdl --logdir=log --host 0.0.0.0`，VisualDL 页面如下：
 
 <div align="center">
 <img src="./docs/images/log.jpg" alt="VisualDL页面" width="600">
 </div>
 
-
 # 评估模型
-训练结束之后会保存预测模型，我们用预测模型来预测测试集中的音频特征，然后使用音频特征进行两两对比，计算EER和MinDCF。
+
+训练结束之后会保存预测模型，我们用预测模型来预测测试集中的音频特征，然后使用音频特征进行两两对比，计算 EER 和 MinDCF。
+
 ```shell
 python eval.py
 ```
 
 输出类似如下：
+
 ```
 ······
 ------------------------------------------------
@@ -436,12 +439,15 @@ predictor.remove_user(user_name='夜雨飘零')
 ```
 
 # 声纹对比
+
 下面开始实现声纹对比，创建`infer_contrast.py`程序，首先介绍几个重要的函数，`predict()`函数是可以获取声纹特征，`predict_batch()`函数是可以获取一批的声纹特征，`contrast()`函数可以对比两条音频的相似度，`register()`函数注册一条音频到声纹库里面，`recognition()`函输入一条音频并且从声纹库里面对比识别，`remove_user()`函数移除你好。声纹库里面的注册人。我们输入两个语音，通过预测函数获取他们的特征数据，使用这个特征数据可以求他们的对角余弦值，得到的结果可以作为他们相识度。对于这个相识度的阈值`threshold`，读者可以根据自己项目的准确度要求进行修改。
+
 ```shell
 python infer_contrast.py --audio_path1=audio/a_1.wav --audio_path2=audio/b_2.wav
 ```
 
 输出类似如下：
+
 ```
 [2023-04-02 18:30:48.009149 INFO   ] utils:print_arguments:13 - ----------- 额外配置参数 -----------
 [2023-04-02 18:30:48.009149 INFO   ] utils:print_arguments:15 - audio_path1: dataset/a_1.wav
@@ -458,7 +464,7 @@ W0425 08:29:10.008555 21121 device_context.cc:465] device: 0, cuDNN Version: 7.6
 audio/a_1.wav 和 audio/b_2.wav 不是同一个人，相似度为：-0.09565544128417969
 ```
 
-同时还提供了有GUI界面的声纹对比程序，执行`infer_contrast_gui.py`启动程序，界面如下，分别选择两个音频，点击开始判断，就可以判断它们是否是同一个人。
+同时还提供了有 GUI 界面的声纹对比程序，执行`infer_contrast_gui.py`启动程序，界面如下，分别选择两个音频，点击开始判断，就可以判断它们是否是同一个人。
 
 <div align="center">
 <img src="./docs/images/contrast.jpg" alt="声纹对比界面">
@@ -468,12 +474,14 @@ audio/a_1.wav 和 audio/b_2.wav 不是同一个人，相似度为：-0.095655441
 
 在新闻识别里面主要使用到`register()`函数和`recognition()`函数，首先使用`register()`函数函数来注册音频到声纹库里面，也可以直接把文件添加到`audio_db`文件夹里面，使用的时候通过`recognition()`函数来发起识别，输入一条音频，就可以从声纹库里面识别到所需要的说话人。
 
-有了上面的声纹识别的函数，读者可以根据自己项目的需求完成声纹识别的方式，例如笔者下面提供的是通过录音来完成声纹识别。首先必须要加载语音库中的语音，语音库文件夹为`audio_db`，然后用户回车后录音3秒钟，然后程序会自动录音，并使用录音到的音频进行声纹识别，去匹配语音库中的语音，获取用户的信息。通过这样方式，读者也可以修改成通过服务请求的方式完成声纹识别，例如提供一个API供APP调用，用户在APP上通过声纹登录时，把录音到的语音发送到后端完成声纹识别，再把结果返回给APP，前提是用户已经使用语音注册，并成功把语音数据存放在`audio_db`文件夹中。
+有了上面的声纹识别的函数，读者可以根据自己项目的需求完成声纹识别的方式，例如笔者下面提供的是通过录音来完成声纹识别。首先必须要加载语音库中的语音，语音库文件夹为`audio_db`，然后用户回车后录音 3 秒钟，然后程序会自动录音，并使用录音到的音频进行声纹识别，去匹配语音库中的语音，获取用户的信息。通过这样方式，读者也可以修改成通过服务请求的方式完成声纹识别，例如提供一个 API 供 APP 调用，用户在 APP 上通过声纹登录时，把录音到的语音发送到后端完成声纹识别，再把结果返回给 APP，前提是用户已经使用语音注册，并成功把语音数据存放在`audio_db`文件夹中。
+
 ```shell
 python infer_recognition.py
 ```
 
 输出类似如下：
+
 ```
 [2023-04-02 18:31:20.521040 INFO   ] utils:print_arguments:13 - ----------- 额外配置参数 -----------
 [2023-04-02 18:31:20.521040 INFO   ] utils:print_arguments:15 - audio_db_path: audio_db/
@@ -501,8 +509,7 @@ Loaded 李达康 audio.
 识别说话的为：夜雨飘零，相似度为：0.920434
 ```
 
-
-同时还提供了有GUI界面的声纹识别程序，执行`infer_recognition_gui.py`启动，点击`注册音频到声纹库`按钮，理解开始说话，录制3秒钟，然后输入注册人的名称，之后可以`执行声纹识别`按钮，然后立即说话，录制3秒钟后，等待识别结果。`删除用户`按钮可以删除用户。`实时识别`按钮可以实时识别，可以一直录音，一直识别。
+同时还提供了有 GUI 界面的声纹识别程序，执行`infer_recognition_gui.py`启动，点击`注册音频到声纹库`按钮，理解开始说话，录制 3 秒钟，然后输入注册人的名称，之后可以`执行声纹识别`按钮，然后立即说话，录制 3 秒钟后，等待识别结果。`删除用户`按钮可以删除用户。`实时识别`按钮可以实时识别，可以一直录音，一直识别。
 
 <div align="center">
 <img src="./docs/images/recognition.jpg" alt="声纹识别界面">
@@ -510,12 +517,14 @@ Loaded 李达康 audio.
 
 # 说话人日志（分离说话人）
 
-执行`infer_speaker_diarization.py`程序，输入音频路径，就可以分离出说话人，并显示结果，建议音频长度不要低于10秒。更多功能可以查看该程序参数。
+执行`infer_speaker_diarization.py`程序，输入音频路径，就可以分离出说话人，并显示结果，建议音频长度不要低于 10 秒。更多功能可以查看该程序参数。
+
 ```shell
 python infer_speaker_diarization.py --audio_path=dataset/test_long.wav
 ```
 
 输出类似如下：
+
 ```
 2024-10-10 19:30:40.768 | INFO     | mvector.predict:__init__:61 - 成功加载模型参数：models/CAMPPlus_Fbank/best_model/model.pth
 2024-10-10 19:30:40.795 | INFO     | mvector.predict:__create_index:127 - 声纹特征索引创建完成，一共有3个用户，分别是：['沙瑞金', '夜雨飘零', '李达康']
@@ -533,11 +542,13 @@ python infer_speaker_diarization.py --audio_path=dataset/test_long.wav
 ```
 
 显示结果图像如下，可以通过`空格`键控制播放音频，点击位置可以跳转音频到指定位置：
+
 <div align="center">
 <img src="./docs/images/speaker_diarization.jpg" alt="说话人日志" width="800">
 </div>
 
-项目同样提供了GUI界面的程序，执行`infer_speaker_diarization_gui.py`程序。更多功能可以查看该程序参数。
+项目同样提供了 GUI 界面的程序，执行`infer_speaker_diarization_gui.py`程序。更多功能可以查看该程序参数。
+
 ```shell
 python infer_speaker_diarization_gui.py
 ```
@@ -548,15 +559,16 @@ python infer_speaker_diarization_gui.py
 <img src="./docs/images/speaker_diarization_gui.png" alt="说话人日志" width="800">
 </div>
 
-
-注意：如果说话人名字是中文的，需要设置安装字体才能正常显示，一般情况下Windows无需安装，Ubuntu需要安装。如果Windows确实是缺少字体，只需要[字体文件](https://github.com/tracyone/program_font)这里下载`.ttf`格式的文件，复制到`C:\Windows\Fonts`即可。Ubuntu系统操作如下。
+注意：如果说话人名字是中文的，需要设置安装字体才能正常显示，一般情况下 Windows 无需安装，Ubuntu 需要安装。如果 Windows 确实是缺少字体，只需要[字体文件](https://github.com/tracyone/program_font)这里下载`.ttf`格式的文件，复制到`C:\Windows\Fonts`即可。Ubuntu 系统操作如下。
 
 1. 安装字体
+
 ```shell
 git clone https://github.com/tracyone/program_font && cd program_font && ./install.sh
 ```
 
-2. 执行下面Python代码
+2. 执行下面 Python 代码
+
 ```python
 import matplotlib
 import shutil
@@ -570,23 +582,58 @@ user_dir = os.path.expanduser('~')
 shutil.rmtree(f'{user_dir}/.cache/matplotlib', ignore_errors=True)
 ```
 
+# web 服务
+
+相关 web 结构
+
+```bash
+app/
+├─ main.py
+├─ core/
+│     ├─ response.py
+│     ├─ exception.py
+│     ├─ logger.py
+│     ├─ loader.py            # 自动扫描routers
+│     └─ middleware_request_id.py
+├─ routers/
+│     ├─ openapi.py
+│     └─ business.py
+└─ schemas/
+
+# 启动
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+注意，需要注释如下代码中的断言，
+.venv\Lib\site-packages\yeaudio\audio.py
+否则无法识别基于 FastAPI 的 SpooledTemporaryFile 类型音频文件。
+
+```python
+    def from_file(cls, file):
+        """从音频文件创建音频段，支持wav、mp3、mp4等多种音频格式
+
+        :param file: 文件路径，或者文件对象
+        :type file: str, BufferedReader
+        :return: 音频片段实例
+        :rtype: AudioSegment
+        """
+        # assert os.path.exists(file), f'文件不存在，请检查路径：{file}'
+        try:
+            samples, sample_rate = soundfile.read(file, dtype='float32')
+        except:
+            # 支持更多格式数据
+            samples, sample_rate = decode_audio(file=file)
+        return cls(samples, sample_rate)
+```
 
 # 其他版本
- - Tensorflow：[VoiceprintRecognition-Tensorflow](https://github.com/yeyupiaoling/VoiceprintRecognition-Tensorflow)
- - PaddlePaddle：[VoiceprintRecognition-PaddlePaddle](https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle)
- - Keras：[VoiceprintRecognition-Keras](https://github.com/yeyupiaoling/VoiceprintRecognition-Keras)
 
-
-## 打赏作者
-
-<br/>
-<div align="center">
-<p>打赏一块钱支持一下作者</p>
-<img src="https://yeyupiaoling.cn/reward.png" alt="打赏作者" width="400">
-</div>
-
+- Tensorflow：[VoiceprintRecognition-Tensorflow](https://github.com/yeyupiaoling/VoiceprintRecognition-Tensorflow)
+- PaddlePaddle：[VoiceprintRecognition-PaddlePaddle](https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle)
+- Keras：[VoiceprintRecognition-Keras](https://github.com/yeyupiaoling/VoiceprintRecognition-Keras)
 
 # 参考资料
+
 1. https://github.com/PaddlePaddle/PaddleSpeech
 2. https://github.com/yeyupiaoling/PaddlePaddle-MobileFaceNets
 3. https://github.com/yeyupiaoling/PPASR

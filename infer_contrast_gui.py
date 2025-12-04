@@ -14,7 +14,7 @@ from mvector.utils.utils import add_arguments, print_arguments
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('configs',          str,    'configs/cam++.yml',   '配置文件')
-add_arg('use_gpu',          bool,   True,                  '是否使用GPU预测')
+add_arg('use_gpu',          bool,   False,                  '是否使用GPU预测')
 add_arg('model_path',       str,    'models/CAMPPlus_Fbank/best_model/', '导出的预测模型文件路径')
 args = parser.parse_args()
 print_arguments(args=args)
@@ -23,7 +23,7 @@ print_arguments(args=args)
 class VoiceContrastGUI:
     def __init__(self, master):
         self.master = master
-        master.title("夜雨飘零声纹对比系统")
+        master.title("声纹对比系统")
         master.geometry('700x670')
         master.resizable(True, True)
         master.configure(bg='#f0f0f0')
