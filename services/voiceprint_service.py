@@ -23,7 +23,6 @@ def _build_parser():
     add_arg("model_path", str, "models/CAMPPlus_Fbank/best_model/", "模型文件路径")
     add_arg("search_audio_db", bool, True, help="是否在音频库中搜索对应的说话人")
     add_arg("use_gpu", bool, False, help="是否使用GPU预测")
-    print_arguments(args=parser.parse_args())
     return parser
 
 

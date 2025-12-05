@@ -23,15 +23,12 @@ def register_exception(app):
     ):
         logger.warning(f"参数验证失败: {exc.errors()}")
         return JSONResponse(
-            status_code=422,
-            content=R.fail(msg="参数验证失败", code=422, data=exc.errors()).model_dump(),
+            content=R.fail(msg=f"参数验证失败",data=exc.errors()).model_dump()
         )
 
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
         logger.exception("服务器内部错误", exc_info=exc)
-        return JSONResponse(
-            status_code=500,
-            content=R.fail(msg="服务器内部错误", code=500).model_dump(),
-        )
+        return JSONResponse(content=R.fail(msg="服务器内部错误").model_dump())
+
     logger.info("全局异常处理已注册")
