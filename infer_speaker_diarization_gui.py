@@ -3,6 +3,7 @@ import functools
 import os.path
 import threading
 import tkinter as tk
+import torch
 from tkinter import filedialog
 
 from mvector.predict import MVectorPredictor
@@ -14,7 +15,7 @@ add_arg("configs", str, "configs/cam++.yml", "配置文件")
 add_arg("audio_path", str, "dataset/test_long.wav", "预测音频路径")
 add_arg("audio_db_path", str, "audio_db/", "音频库的路径")
 add_arg("speaker_num", int, None, "说话人数量，提供说话人数量可以提高准确率")
-add_arg("use_gpu", bool, False, "是否使用GPU预测")
+add_arg("use_gpu", bool, torch.cuda.is_available(), "是否使用GPU预测")
 add_arg("threshold", float, 0.6, "判断是否为同一个人的阈值")
 add_arg(
     "model_path", str, "models/CAMPPlus_Fbank/best_model/", "导出的预测模型文件路径"

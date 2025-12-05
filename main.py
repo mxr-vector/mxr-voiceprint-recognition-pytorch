@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import functools
 import argparse
 from mvector.utils.utils import add_arguments, print_arguments
-
+import torch
 def build_parser():
     """
     构建参数解析器
@@ -25,7 +25,7 @@ def build_parser():
     add_arg("record_seconds", int, 10, "录音时长")
     add_arg("model_path", str, "models/CAMPPlus_Fbank/best_model/", "模型文件路径")
     add_arg("search_audio_db", bool, True, help="是否在音频库中搜索对应的说话人")
-    add_arg("use_gpu", bool, False, help="是否使用GPU预测")
+    add_arg("use_gpu", bool, torch.cuda.is_available(), help="是否使用GPU预测")
     return parser
 
 

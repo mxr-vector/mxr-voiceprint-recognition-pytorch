@@ -29,7 +29,5 @@ def load_routers(app: FastAPI, package: str = "routers"):
             if hasattr(module, "router") and isinstance(module.router, APIRouter):
                 parent_router.include_router(module.router)
                 logger.info(f"已加载路由: {full_name}")
-            else:
-                logger.info(f"模块 {full_name} 中无 router 对象")
     app.include_router(parent_router)
     logger.info("路由自动扫描完成")

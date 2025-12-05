@@ -5,6 +5,7 @@ import functools
 import argparse
 import threading
 import time
+import torch 
 from pathlib import Path
 
 from mvector.predict import MVectorPredictor
@@ -14,7 +15,7 @@ from mvector.utils.utils import add_arguments, print_arguments
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('configs',          str,    'configs/cam++.yml',   '配置文件')
-add_arg('use_gpu',          bool,   False,                  '是否使用GPU预测')
+add_arg("use_gpu", bool, torch.cuda.is_available(), "是否使用GPU预测")
 add_arg('model_path',       str,    'models/CAMPPlus_Fbank/best_model/', '导出的预测模型文件路径')
 args = parser.parse_args()
 print_arguments(args=args)

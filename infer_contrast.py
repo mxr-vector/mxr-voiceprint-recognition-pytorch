@@ -1,13 +1,13 @@
 import argparse
 import functools
-
+import torch
 from mvector.predict import MVectorPredictor
 from mvector.utils.utils import add_arguments, print_arguments
 
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('configs',          str,    'configs/cam++.yml',        '配置文件')
-add_arg('use_gpu',          bool,   True,                       '是否使用GPU预测')
+add_arg("use_gpu", bool, torch.cuda.is_available(), "是否使用GPU预测")
 add_arg('audio_path1',      str,    'dataset/a_1.wav',          '预测第一个音频')
 add_arg('audio_path2',      str,    'dataset/b_2.wav',          '预测第二个音频')
 add_arg('threshold',        float,  0.6,                        '判断是否为同一个人的阈值')

@@ -81,7 +81,13 @@ async def deleteAudio(user_id: str = Query(..., description="声纹id")) -> Unio
     return R.success("删除成功") if result else R.fail("删除失败")
 
 
-ALLOWED_AUDIO_TYPES = ["audio/wav", "audio/mp3", "audio/flac", "audio/wave"]
+ALLOWED_AUDIO_TYPES = [
+    "audio/wav",
+    "audio/mp3",
+    "audio/flac",
+    "audio/wave",
+    "audio/x-wav",
+]
 
 
 def validate_audio_file(
