@@ -107,6 +107,8 @@ class MVectorPredictor:
         self.audio_feature_mean = None
         # 声纹特征对应的用户名
         self.users_name = []
+        # 用户对应的音频文件
+        self.user_dicts = {}
         # 声纹特征对应的声纹文件路径
         self.users_audio_path = []
         # 每个用户的平均声纹特征对应的用户名称
@@ -134,6 +136,10 @@ class MVectorPredictor:
                 continue
             self.users_name.append(name)
             self.users_audio_path.append(path)
+            # 保存用户音频
+            if name not in self.user_dicts:
+                self.user_dicts[name] = []
+            self.user_dicts[name].append(path)
             if self.audio_feature is None:
                 self.audio_feature = feature[np.newaxis, :]
             else:
@@ -178,6 +184,10 @@ class MVectorPredictor:
             user_name = os.path.basename(os.path.dirname(audio_path))
             self.users_name.append(user_name)
             self.users_audio_path.append(audio_path)
+            # 保存用户音频
+            if user_name not in self.user_dicts:
+                self.user_dicts[user_name] = []
+            self.user_dicts[user_name].append(audio_path)
             input_audios.append(audio_segment.samples)
             # 处理一批数据
             if len(input_audios) == self.configs.dataset_conf.eval_conf.batch_size:
@@ -373,6 +383,9 @@ class MVectorPredictor:
         audio_segment.to_wav_file(audio_path)
         self.users_audio_path.append(audio_path.replace("\\", "/"))
         self.users_name.append(user_name)
+        if user_name not in self.user_dicts:
+            self.user_dicts[user_name] = []
+        self.user_dicts[user_name].append(audio_path)
         self.__write_index()
         # 更新检索的特征
         if user_name in self.users_name_mean:
@@ -419,7 +432,7 @@ class MVectorPredictor:
 
         return: 所有用户
         """
-        return self.users_name
+        return self.user_dicts
 
     def remove_user(self, user_name):
         """删除用户
@@ -437,6 +450,7 @@ class MVectorPredictor:
                 del self.users_name[index]
                 del self.users_audio_path[index]
                 self.audio_feature = np.delete(self.audio_feature, index, axis=0)
+            del self.user_dicts[user_name]
             self.__write_index()
             shutil.rmtree(os.path.join(self.audio_db_path, user_name))
             # 删除检索内的特征

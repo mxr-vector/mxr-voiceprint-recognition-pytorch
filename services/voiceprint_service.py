@@ -84,7 +84,7 @@ class __VoiceprintService:
         :return: 所有用户列表
         """
         users = self.predictor.get_users()
-        return set(users)
+        return users
 
     async def remove_user(self, user_id: str) -> Union[dict, str]:
         """删除用户音频
