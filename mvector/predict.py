@@ -408,7 +408,7 @@ class MVectorPredictor:
                         (self.audio_feature_mean, feature)
                     )
         is_save=True
-        return is_save, user_name, audio_path
+        return is_save, audio_path
 
     def recognition(self, audio_data, threshold=None, sample_rate=16000):
         """声纹识别

@@ -36,15 +36,13 @@ async def getSimilarity(
 # 注册用户音频
 @router.post("/register")
 async def registerAudio(
-    user_id: str = Form(..., description="声纹id"),
+    storage_id: str = Form(..., description="声纹id"),
     audio_data: UploadFile = File(..., description="音频文件"),
 ) -> Union[R]:
     audio_segment = validate_audio_file(audio_data, is_voiceprint=True)
-    is_save, user_name, audio_path = await singleVoiceprintService.register(
-        user_id, audio_segment
-    )
+    is_save, storage_id, audio_path = await singleVoiceprintService.register(storage_id, audio_segment)
     return (
-        R.success({"user_id": user_name, "audio_path": audio_path})
+        R.success({"storage_id": storage_id, "audio_path": audio_path})
         if is_save
         else R.fail("注册失败")
     )
@@ -56,8 +54,8 @@ async def recognitionAudio(
     audio_data: UploadFile = File(..., description="音频文件")
 ) -> Union[R]:
     audio_segment = validate_audio_file(audio_data)
-    user_id, score = await singleVoiceprintService.recognition(audio_segment)
-    return R.success({"user_id": user_id, "score": score})
+    storage_id, score = await singleVoiceprintService.recognition(audio_segment)
+    return R.success({"storage_id": storage_id, "score": score})
 
 
 # 说话人日志识别
@@ -82,8 +80,8 @@ async def getUsers() -> Union[R]:
 
 # 删除用户音频
 @router.delete("/delete")
-async def deleteAudio(user_id: str = Query(..., description="声纹id")) -> Union[R]:
-    result = await singleVoiceprintService.remove_user(user_id)
+async def deleteAudio(storage_id: str = Query(..., description="声纹id")) -> Union[R]:
+    result = await singleVoiceprintService.remove_user(storage_id)
     return R.success("删除成功") if result else R.fail("删除失败")
 
 

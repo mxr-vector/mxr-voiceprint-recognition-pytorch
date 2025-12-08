@@ -42,15 +42,19 @@ class __VoiceprintService:
         threshold = self.args.threshold
         return float(similarity), float(threshold)
 
-    async def register(self, user_id: str, audio_segment: AudioSegment) -> Union[dict, str]:
+    async def register(
+        self, storage_id: str, audio_segment: AudioSegment
+    ) -> Union[dict, str]:
         """注册用户音频
 
         :param user_id: 用户ID
         :param audio_data: 音频数据
         :return: 注册结果
         """
-        is_save,user_name, audio_path = self.predictor.register(audio_segment, user_id)
-        return is_save, user_name, audio_path
+        is_save, audio_path = self.predictor.register(
+            audio_segment, storage_id
+        )
+        return is_save, audio_path
 
     async def recognition(self, audio_segment: AudioSegment) -> Union[tuple, str]:
         """识别用户音频
@@ -58,8 +62,8 @@ class __VoiceprintService:
         :param audio_data: 音频数据
         :return: 识别结果
         """
-        user_id, score = self.predictor.recognition(audio_segment)
-        return user_id, score
+        storage_id, score = self.predictor.recognition(audio_segment)
+        return storage_id, score
 
     async def speaker_diarization(
         self,
@@ -86,13 +90,13 @@ class __VoiceprintService:
         users = self.predictor.get_users()
         return users
 
-    async def remove_user(self, user_id: str) -> Union[dict, str]:
+    async def remove_user(self, storage_id: str) -> Union[dict, str]:
         """删除用户音频
 
-        :param user_id: 用户ID
+        :param storage_id: 用户ID
         :return: 删除结果
         """
-        result = self.predictor.remove_user(user_id)
+        result = self.predictor.remove_user(storage_id)
         return result
 
 
