@@ -40,8 +40,14 @@ async def registerAudio(
     audio_data: UploadFile = File(..., description="音频文件"),
 ) -> Union[R]:
     audio_segment = validate_audio_file(audio_data, is_voiceprint=True)
-    result = await singleVoiceprintService.register(user_id, audio_segment)
-    return R.success("注册成功") if result else R.fail("注册失败")
+    is_save, user_name, audio_path = await singleVoiceprintService.register(
+        user_id, audio_segment
+    )
+    return (
+        R.success({"user_id": user_name, "audio_path": audio_path})
+        if is_save
+        else R.fail("注册失败")
+    )
 
 
 # 识别用户音频

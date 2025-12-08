@@ -381,7 +381,8 @@ class MVectorPredictor:
             )
         os.makedirs(os.path.dirname(audio_path), exist_ok=True)
         audio_segment.to_wav_file(audio_path)
-        self.users_audio_path.append(audio_path.replace("\\", "/"))
+        audio_path = audio_path.replace("\\", "/")
+        self.users_audio_path.append(audio_path)
         self.users_name.append(user_name)
         if user_name not in self.user_dicts:
             self.user_dicts[user_name] = []
@@ -406,7 +407,8 @@ class MVectorPredictor:
                     self.audio_feature_mean = np.vstack(
                         (self.audio_feature_mean, feature)
                     )
-        return True
+        is_save=True
+        return is_save, user_name, audio_path
 
     def recognition(self, audio_data, threshold=None, sample_rate=16000):
         """声纹识别

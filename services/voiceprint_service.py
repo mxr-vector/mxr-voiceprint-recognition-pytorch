@@ -49,8 +49,8 @@ class __VoiceprintService:
         :param audio_data: 音频数据
         :return: 注册结果
         """
-        result = self.predictor.register(audio_segment, user_id)
-        return result
+        is_save,user_name, audio_path = self.predictor.register(audio_segment, user_id)
+        return is_save, user_name, audio_path
 
     async def recognition(self, audio_segment: AudioSegment) -> Union[tuple, str]:
         """识别用户音频
