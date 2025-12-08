@@ -1,5 +1,6 @@
 from typing import Union
 from fastapi import APIRouter, UploadFile, HTTPException, File, Form, Body, Query, Path
+from fastapi.responses import FileResponse
 from services.voiceprint_service import singleVoiceprintService
 from core.response import R
 from yeaudio.audio import AudioSegment
@@ -40,7 +41,9 @@ async def registerAudio(
     audio_data: UploadFile = File(..., description="音频文件"),
 ) -> Union[R]:
     audio_segment = validate_audio_file(audio_data, is_voiceprint=True)
-    is_save, storage_id, audio_path = await singleVoiceprintService.register(storage_id, audio_segment)
+    is_save, storage_id, audio_path = await singleVoiceprintService.register(
+        storage_id, audio_segment
+    )
     return (
         R.success({"storage_id": storage_id, "audio_path": audio_path})
         if is_save
@@ -78,11 +81,18 @@ async def getUsers() -> Union[R]:
     return R.success(users)
 
 
-# 删除用户音频
+# 清空用户音频
 @router.delete("/clear")
-async def deleteAudio(storage_id: str = Query(..., description="声纹id")) -> Union[R]:
+async def clearAudio(storage_id: str = Query(..., description="声纹id")) -> Union[R]:
     result = await singleVoiceprintService.clear_user(storage_id)
     return R.success("删除成功") if result else R.fail("删除失败")
+
+
+@router.get("/preview")
+async def preview(
+    file_url: str = Query(..., description="预览文件相对地址")
+) -> Union[FileResponse]:
+    return FileResponse(file_url)
 
 
 ALLOWED_AUDIO_TYPES = [

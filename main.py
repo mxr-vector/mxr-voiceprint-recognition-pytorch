@@ -11,6 +11,8 @@ import functools
 import argparse
 from mvector.utils.utils import add_arguments, print_arguments
 import torch
+
+
 def build_parser():
     """
     构建参数解析器
@@ -30,11 +32,12 @@ def build_parser():
 
 
 # 配置允许跨域的域名
-origins = ["http://localhost", "http://localhost:8000", "*"]
+origins = ["*"]
 
-app = FastAPI()
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 # 挂载静态文件
 app.mount("/static", StaticFiles(directory="static"), name="static")
+# app.mount("/audio_db", StaticFiles(directory="audio_db"), name="audio_db")
 # 注册中间件
 app.add_middleware(RequestIDMiddleware)  # 请求ID
 app.add_middleware(AccessLogMiddleware)  # 访问日志
@@ -63,4 +66,4 @@ if __name__ == "__main__":
     import uvicorn
 
     # uvicorn main:app --host 127.0.0.1 --port 8000 --reload
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True, workers=1)
+    uvicorn.run("main:app", host="192.168.245.213", port=8000, reload=True, workers=1)
