@@ -407,8 +407,8 @@ class MVectorPredictor:
                     self.audio_feature_mean = np.vstack(
                         (self.audio_feature_mean, feature)
                     )
-        is_save=True
-        return is_save, audio_path
+        is_save = True
+        return is_save, user_name, audio_path
 
     def recognition(self, audio_data, threshold=None, sample_rate=16000):
         """声纹识别
@@ -436,8 +436,8 @@ class MVectorPredictor:
         """
         return self.user_dicts
 
-    def remove_user(self, user_name):
-        """删除用户
+    def clear_user(self, user_name):
+        """清空用户
 
         :param user_name: 用户名
         :return:

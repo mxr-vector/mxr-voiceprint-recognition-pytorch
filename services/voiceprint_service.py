@@ -51,10 +51,10 @@ class __VoiceprintService:
         :param audio_data: 音频数据
         :return: 注册结果
         """
-        is_save, audio_path = self.predictor.register(
+        is_save,storage_id, audio_path = self.predictor.register(
             audio_segment, storage_id
         )
-        return is_save, audio_path
+        return is_save,storage_id, audio_path
 
     async def recognition(self, audio_segment: AudioSegment) -> Union[tuple, str]:
         """识别用户音频
@@ -90,13 +90,13 @@ class __VoiceprintService:
         users = self.predictor.get_users()
         return users
 
-    async def remove_user(self, storage_id: str) -> Union[dict, str]:
-        """删除用户音频
+    async def clear_user(self, storage_id: str) -> Union[dict, str]:
+        """清空用户音频
 
         :param storage_id: 用户ID
         :return: 删除结果
         """
-        result = self.predictor.remove_user(storage_id)
+        result = self.predictor.clear_user(storage_id)
         return result
 
 
