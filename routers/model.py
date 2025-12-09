@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse
 from services.voiceprint_service import singleVoiceprintService
 from core.response import R
 from yeaudio.audio import AudioSegment
-from main import args
+from core.config import args
 
 # 创建路由
 router = APIRouter(prefix="/model", tags=["OpenAPI - 声纹识别开放接口"])

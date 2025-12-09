@@ -1,8 +1,7 @@
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
-from main import args
-
+from core.config import args
 
 # 可配置无需认证的路径
 EXCLUDE_PATHS = {"/", "/docs", "/openapi.json", "/favicon.ico", "/static"}

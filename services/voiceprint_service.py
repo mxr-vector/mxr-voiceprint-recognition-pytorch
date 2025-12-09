@@ -3,8 +3,8 @@ from typing import Union
 import argparse
 from typing import Optional
 from yeaudio.audio import AudioSegment
-from main import args as main_args
-import threading
+from core.config import args as main_args
+
 class __VoiceprintService:
     """声纹识别服务"""
     def __init__(self, args: Optional[argparse.Namespace] = None):
