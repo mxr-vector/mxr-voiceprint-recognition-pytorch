@@ -630,6 +630,13 @@ uv run main.py
         return cls(samples, sample_rate)
 ```
 
+# web 部署
+
+```
+uv run python3 main.py
+nohup uv run main.py > output.log 2>&1 &
+```
+
 # 其他版本
 
 - Tensorflow：[VoiceprintRecognition-Tensorflow](https://github.com/yeyupiaoling/VoiceprintRecognition-Tensorflow)

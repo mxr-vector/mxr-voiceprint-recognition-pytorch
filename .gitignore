@@ -14,5 +14,4 @@ feature_models/
 # Ignore VSCode settings
 .vscode/
 uv.lock
-.python-version
 .venv/
