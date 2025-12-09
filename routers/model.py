@@ -87,7 +87,7 @@ async def clearAudio(storage_id: str = Query(..., description="声纹id")) -> Un
     result = await singleVoiceprintService.clear_user(storage_id)
     return R.success("删除成功") if result else R.fail("删除失败")
 
-
+# 预览文件
 @router.get("/preview")
 async def preview(
     file_url: str = Query(..., description="预览文件相对地址")
