@@ -64,6 +64,11 @@ logger.info("声纹识别 Web服务器启动....")
 # 启动（仅本地调试用）
 if __name__ == "__main__":
     import uvicorn
+    import os
 
     # uvicorn main:app --host 127.0.0.1 --port 8000 --reload
-    uvicorn.run("main:app", host="192.168.245.213", port=8000, reload=True, workers=1)
+    cpu_count = os.cpu_count() or 1
+    workers = cpu_count // 4 + 1
+    uvicorn.run(
+        "main:app", host="192.168.245.213", port=8000, reload=True, workers=workers
+    )

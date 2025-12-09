@@ -4,7 +4,7 @@ import argparse
 from typing import Optional
 from yeaudio.audio import AudioSegment
 from main import build_parser
-
+import threading
 class __VoiceprintService:
     """声纹识别服务"""
     def __init__(self, args: Optional[argparse.Namespace] = None):
