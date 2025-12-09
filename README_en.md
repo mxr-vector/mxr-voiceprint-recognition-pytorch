@@ -465,6 +465,14 @@ Otherwise, audio files of the SpooledTemporaryFile type based on FastAPI cannot 
         return cls(samples, sample_rate)
 ```
 
+# web 部署
+
+Parameter updates should be made in `core/config.py`.
+```
+uv run python3 main.py
+nohup uv run main.py > output.log 2>&1 &
+```
+
 # Other Versions
 
 - Tensorflow：[VoiceprintRecognition-Tensorflow](https://github.com/yeyupiaoling/VoiceprintRecognition-Tensorflow)

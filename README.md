@@ -632,6 +632,7 @@ uv run main.py
 
 # web 部署
 
+参数请在`core/config.py`中修改。
 ```
 uv run python3 main.py
 nohup uv run main.py > output.log 2>&1 &
