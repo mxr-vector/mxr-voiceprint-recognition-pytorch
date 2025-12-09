@@ -1,8 +1,8 @@
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
+from main import args
 
-API_TOKEN = "voiceprint-open-api-token"
 
 # 可配置无需认证的路径
 EXCLUDE_PATHS = {"/", "/docs", "/openapi.json", "/favicon.ico", "/static"}
@@ -18,7 +18,7 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
 
         token = request.headers.get("Authorization")
 
-        if token != f"Bearer {API_TOKEN}":
+        if token != f"Bearer {args.web_secret_key}":
             return JSONResponse(
                 status_code=401,
                 content={"code": 401, "msg": "Invalid or missing token", "data": None},

@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse
 from services.voiceprint_service import singleVoiceprintService
 from core.response import R
 from yeaudio.audio import AudioSegment
-from main import build_parser
+from main import args
 
 # 创建路由
 router = APIRouter(prefix="/model", tags=["OpenAPI - 声纹识别开放接口"])
@@ -112,7 +112,6 @@ def validate_audio_file(
     :param audio_data: 上传的音频文件
     :param is_voiceprint: 是否为声纹录制音频
     """
-    args = build_parser().parse_args()
     "校验文件格式"
     if audio_data.content_type not in ALLOWED_AUDIO_TYPES:
         raise HTTPException(

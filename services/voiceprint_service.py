@@ -3,12 +3,12 @@ from typing import Union
 import argparse
 from typing import Optional
 from yeaudio.audio import AudioSegment
-from main import build_parser
+from main import args as main_args
 import threading
 class __VoiceprintService:
     """声纹识别服务"""
     def __init__(self, args: Optional[argparse.Namespace] = None):
-        self.args = build_parser().parse_args() if args is None else args
+        self.args = main_args if args is None else args
 
         if self.args.search_audio_db:
             assert self.args.audio_db_path, "需要指定音频库路径"
