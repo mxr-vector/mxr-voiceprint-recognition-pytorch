@@ -637,11 +637,11 @@ uv run main.py
 
 ```shell
 # 构建镜像
-docker build -t voiceprint-pytorch:latest .
+docker build -t voiceprint-pytorch:1.0 .
 
 
 # 启动临时容器拷贝文件到本地
-docker run -it --name voiceprint voiceprint-pytorch:latest /bin/bash
+docker run -it --name voiceprint voiceprint-pytorch:1.0 /bin/bash
 
 # 开新终端 拷贝数据
 docker cp voiceprint:/workspace $PWD
@@ -656,7 +656,7 @@ mv <模型地址> ./workspace/models
 docker run -it -p 8000:8000 --shm-size=8g \
 -v $PWD/workspace:/workspace \
 --restart=always \
---name voiceprint voiceprint-pytorch:latest /bin/bash
+--name voiceprint voiceprint-pytorch:1.0 /bin/bash
 ```
 
 # 其他版本
