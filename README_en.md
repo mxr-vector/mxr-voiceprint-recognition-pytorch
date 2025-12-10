@@ -469,8 +469,31 @@ Otherwise, audio files of the SpooledTemporaryFile type based on FastAPI cannot 
 
 Parameter updates should be made in `core/config.py`.
 ```
-uv run python3 main.py
-nohup uv run main.py > output.log 2>&1 &
+# build images
+docker build -t voiceprint-pytorch:1.0 .
+
+
+# Start the temporary container to copy files to the local machine
+docker run -it --name voiceprint voiceprint-pytorch:1.0 /bin/bash
+
+# Open a new terminal to copy the data
+docker cp voiceprint:/workspace $PWD
+
+# Exit the container and delete the temporary container
+docker rm -f voiceprint
+
+# Copy the model to the local device
+mv <model-path> ./workspace/models
+
+# start
+docker run -it -p 8000:8000 --shm-size=8g \
+-v $PWD/workspace:/workspace \
+--restart=always \
+--name voiceprint voiceprint-pytorch:1.0 /bin/bash
+
+bash run.sh start
+
+# When you start up, visit http://127.0.0.1:8000 and you will get a page prompt
 ```
 
 # Other Versions

@@ -659,6 +659,8 @@ docker run -it -p 8000:8000 --shm-size=8g \
 --name voiceprint voiceprint-pytorch:1.0 /bin/bash
 
 bash run.sh start
+
+# 启动后访问 http://127.0.0.1:8000 会有页面提示
 ```
 
 # 其他版本
