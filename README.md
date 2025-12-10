@@ -657,6 +657,8 @@ docker run -it -p 8000:8000 --shm-size=8g \
 -v $PWD/workspace:/workspace \
 --restart=always \
 --name voiceprint voiceprint-pytorch:1.0 /bin/bash
+
+bash run.sh start
 ```
 
 # 其他版本
