@@ -636,6 +636,15 @@ uv run main.py
 使用 dockerfile 构建镜像,如下命令启动容器
 
 ```shell
+# 你需要检查dockerfile的torch配置和你的设备cuda版本一致
+vim Dockerfile
+==============
+RUN uv pip install \
+    torch==2.9.0 \
+    torchvision==0.24.0 \
+    torchaudio==2.9.0 \
+    --index-url https://download.pytorch.org/whl/cu128
+==============
 # 构建镜像
 docker build -t voiceprint-pytorch:1.0 .
 

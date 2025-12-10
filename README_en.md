@@ -468,7 +468,17 @@ Otherwise, audio files of the SpooledTemporaryFile type based on FastAPI cannot 
 # web 部署
 
 Parameter updates should be made in `core/config.py`.
-```
+```bash
+# You need to check that the torch configuration in the Dockerfile is consistent with the CUDA version of your device.
+vim Dockerfile
+======Dockerfile start========
+RUN uv pip install \
+    torch==2.9.0 \
+    torchvision==0.24.0 \
+    torchaudio==2.9.0 \
+    --index-url https://download.pytorch.org/whl/cu128
+=======end=======
+
 # build images
 docker build -t voiceprint-pytorch:1.0 .
 
