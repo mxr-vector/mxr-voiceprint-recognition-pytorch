@@ -633,9 +633,27 @@ uv run main.py
 # web 部署
 
 参数请在`core/config.py`中修改。
+使用 dockerfile 构建镜像,如下命令启动容器
+
 ```
-uv run python3 main.py
-nohup uv run main.py > output.log 2>&1 &
+# 启动临时容器拷贝文件到本地
+docker run -it --name voiceprint voiceprint-pytorch:latest /bin/bash
+# 拷贝数据
+docker cp voiceprint:/workspace $PWD
+
+#删除临时容器
+docker rm -f voiceprint
+
+# 拷贝模型到本地
+mv <模型地址> ./workspace/models
+
+# 启动
+docker run -it -p 8000:8000 --shm-size=8g \
+-v $PWD/workspace:/workspace \
+--restart=always \
+--name voiceprint <镜像名:标签> /bin/bash
+
+
 ```
 
 # 其他版本

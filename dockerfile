@@ -1,6 +1,6 @@
 # 使用官方 python 镜像作为基础镜像
 FROM python:3.11-slim AS base
-
+LABEL maintainer="782353676@qq.com"
 # 安装 uv（最新方式：一条 curl 命令）
 RUN apt-get update && apt-get install -y curl && \
     curl -LsSf https://astral.sh/uv/install.sh | sh
