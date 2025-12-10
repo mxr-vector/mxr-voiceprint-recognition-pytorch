@@ -13,7 +13,8 @@ class __VoiceprintService:
         if self.args.search_audio_db:
             assert self.args.audio_db_path, "需要指定音频库路径"
 
-        self.predictor = MVectorPredictor(
+    def __get_predictor(self) -> MVectorPredictor:
+        return MVectorPredictor(
             configs=self.args.configs,
             model_path=self.args.model_path,
             threshold=self.args.threshold,
@@ -27,7 +28,7 @@ class __VoiceprintService:
         :param audio_data: 音频数据
         :return: 音频特征
         """
-        embedding = self.predictor.predict(audio_segment)
+        embedding = self.__get_predictor().predict(audio_segment)
         return embedding.tolist()
 
     async def contrast(
@@ -38,7 +39,7 @@ class __VoiceprintService:
         :param audio_data2: 音频数据2
         :return: 相似度
         """
-        similarity = self.predictor.contrast(audio_segment1, audio_segment2)
+        similarity = self.__get_predictor().contrast(audio_segment1, audio_segment2)
         threshold = self.args.threshold
         return float(similarity), float(threshold)
 
@@ -51,7 +52,7 @@ class __VoiceprintService:
         :param audio_data: 音频数据
         :return: 注册结果
         """
-        is_save,storage_id, audio_path = self.predictor.register(
+        is_save,storage_id, audio_path = self.__get_predictor().register(
             audio_segment, storage_id
         )
         return is_save,storage_id, audio_path
@@ -62,7 +63,7 @@ class __VoiceprintService:
         :param audio_data: 音频数据
         :return: 识别结果
         """
-        storage_id, score = self.predictor.recognition(audio_segment)
+        storage_id, score = self.__get_predictor().recognition(audio_segment)
         return storage_id, score
 
     async def speaker_diarization(
@@ -78,7 +79,7 @@ class __VoiceprintService:
         :param search_audio_db: 是否在音频库中搜索对应的说话人
         :return: 说话人日志识别结果
         """
-        results = self.predictor.speaker_diarization(
+        results = self.__get_predictor().speaker_diarization(
             audio_segment, speaker_num=speaker_num, search_audio_db=search_audio_db
         )
         return results
@@ -87,7 +88,7 @@ class __VoiceprintService:
         """获取所有用户
         :return: 所有用户列表
         """
-        users = self.predictor.get_users()
+        users = self.__get_predictor().get_users()
         return users
 
     async def clear_user(self, storage_id: str) -> Union[dict, str]:
@@ -96,7 +97,7 @@ class __VoiceprintService:
         :param storage_id: 用户ID
         :return: 删除结果
         """
-        result = self.predictor.clear_user(storage_id)
+        result = self.__get_predictor().clear_user(storage_id)
         return result
 
 
