@@ -8,13 +8,14 @@ from core.logger import logger
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
+
 def create_app() -> FastAPI:
-    '''
+    """
     create_app 的 Docstring
     创建 FastAPI 对象
     :return: FastAPI 对象
     :rtype: FastAPI
-    '''
+    """
     # 配置允许跨域的域名
     origins = ["*"]
 
@@ -34,13 +35,13 @@ def create_app() -> FastAPI:
     app.add_middleware(TokenAuthMiddleware)  # 认证
     app.add_middleware(AccessLogMiddleware)  # 访问日志
 
-
     # 注册全局异常处理
     register_exception(app)
 
     # 路由注册
     load_routers(app)
     return app
+
 
 app = create_app()
 
@@ -51,8 +52,6 @@ if __name__ == "__main__":
 
     # uvicorn main:app --host 127.0.0.1 --port 8000 --reload
     cpu_count = os.cpu_count() or 1
-    workers = cpu_count // 4 + 1
-    uvicorn.run(
-        "main:app", host="127.0.0.1", port=8000, reload=False, workers=workers
-    )
+    workers = cpu_count // 8 + 1
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False, workers=workers)
     logger.info("声纹识别 Web服务器启动....")

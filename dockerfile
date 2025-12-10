@@ -1,9 +1,13 @@
 # 使用官方 python 镜像作为基础镜像
 FROM python:3.11-slim AS base
 LABEL maintainer="782353676@qq.com"
-# 安装 uv（最新方式：一条 curl 命令）
-RUN apt-get update && apt-get install -y curl && \
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 安装 uv, curl 和 procps（提供 ps/pgrep） 
+RUN apt-get update && \
+    apt-get install -y curl procps && \
+    curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    rm -rf /var/lib/apt/lists/*
+
 
 # 将 uv 放到 PATH
 ENV PATH="/root/.local/bin:${PATH}"
@@ -16,6 +20,9 @@ COPY pyproject.toml .python-version ./
 
 # 使用 uv 安装虚拟环境和依赖
 RUN uv sync --python 3.11
+
+# 给 run.sh 可执行权限
+RUN chmod +x run.sh && mkdir -p logs
 
 # 手动安装 GPU PyTorch
 RUN uv pip install \
@@ -31,4 +38,4 @@ COPY . .
 ENV PATH="/workspace/.venv/bin:${PATH}"
 
 # 容器启动命令（替换成你的入口）
-CMD ["python", "main.py"]
+CMD ["sh", "run.sh", "start"]

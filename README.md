@@ -635,13 +635,18 @@ uv run main.py
 参数请在`core/config.py`中修改。
 使用 dockerfile 构建镜像,如下命令启动容器
 
-```
+```shell
+# 构建镜像
+docker build -t voiceprint-pytorch:latest .
+
+
 # 启动临时容器拷贝文件到本地
 docker run -it --name voiceprint voiceprint-pytorch:latest /bin/bash
-# 拷贝数据
+
+# 开新终端 拷贝数据
 docker cp voiceprint:/workspace $PWD
 
-#删除临时容器
+# 退出容器并删除临时容器
 docker rm -f voiceprint
 
 # 拷贝模型到本地
@@ -651,9 +656,7 @@ mv <模型地址> ./workspace/models
 docker run -it -p 8000:8000 --shm-size=8g \
 -v $PWD/workspace:/workspace \
 --restart=always \
---name voiceprint <镜像名:标签> /bin/bash
-
-
+--name voiceprint voiceprint-pytorch:latest /bin/bash
 ```
 
 # 其他版本
