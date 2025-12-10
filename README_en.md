@@ -465,7 +465,7 @@ Otherwise, audio files of the SpooledTemporaryFile type based on FastAPI cannot 
         return cls(samples, sample_rate)
 ```
 
-# web 部署
+# Cross-platform Deployment with Docker
 
 Parameter updates should be made in `core/config.py`.
 ```bash

@@ -631,7 +631,7 @@ uv run main.py
         return cls(samples, sample_rate)
 ```
 
-# web 部署
+# Docker 跨平台部署
 
 参数请在`core/config.py`中修改。
 使用 dockerfile 构建镜像,如下命令启动容器
