@@ -590,6 +590,7 @@ shutil.rmtree(f'{user_dir}/.cache/matplotlib', ignore_errors=True)
 app/
 ├─ main.py # 启动文件
 ├─ core/ # 最小核心模块
+│     ├─ config.py # 参数配置文件
 │     ├─ response.py # 统一响应
 │     ├─ gobal_exception.py # 全局异常
 │     ├─ logger.py # 统一日志
@@ -598,10 +599,10 @@ app/
 │     ├─ middleware_access_log.py # 访问日志中间件
 │     └─ middleware_auth.py # 认证中间件
 ├─ routers/ # 全局路由
-│     ├─ index.py
-│     └─ model.py
+│     ├─ index.py # 首页
+│     └─ model.py # 模型接口
 ├─ service/ # 服务层业务处理
-└─ schemas/
+└─ schemas/ # 待定
 
 # 启动
 # uvicorn main:app --host 127.0.0.1 --port 8000 --reload
