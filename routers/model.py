@@ -83,9 +83,20 @@ async def getUsers() -> Union[R]:
 
 # 清空用户音频
 @router.delete("/clear")
-async def clearAudio(storage_id: str = Query(..., description="声纹id")) -> Union[R]:
+async def clearAudio(storage_id: str = Query(..., description="用户目录id")) -> Union[R]:
     result = await singleVoiceprintService.clear_user(storage_id)
     return R.success("删除成功") if result else R.fail("删除失败")
+
+
+# 删除用户的音频
+@router.delete("/delete")
+async def deleteAudio(
+    storage_id: str = Query(..., description="用户目录id"),
+    audio_path: str = Query(..., description="音频路径"),
+) -> Union[R]:
+    result = await singleVoiceprintService.delete_audio(storage_id, audio_path)
+    return R.success("删除成功") if result else R.fail("删除失败")
+
 
 # 预览文件
 @router.get("/preview")

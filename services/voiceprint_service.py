@@ -5,8 +5,10 @@ from typing import Optional
 from yeaudio.audio import AudioSegment
 from core.config import args as main_args
 
+
 class __VoiceprintService:
     """声纹识别服务"""
+
     def __init__(self, args: Optional[argparse.Namespace] = None):
         self.args = main_args if args is None else args
 
@@ -52,10 +54,10 @@ class __VoiceprintService:
         :param audio_data: 音频数据
         :return: 注册结果
         """
-        is_save,storage_id, audio_path = self.__get_predictor().register(
+        is_save, storage_id, audio_path = self.__get_predictor().register(
             audio_segment, storage_id
         )
-        return is_save,storage_id, audio_path
+        return is_save, storage_id, audio_path
 
     async def recognition(self, audio_segment: AudioSegment) -> Union[tuple, str]:
         """识别用户音频
@@ -98,6 +100,14 @@ class __VoiceprintService:
         :return: 删除结果
         """
         result = self.__get_predictor().clear_user(storage_id)
+        return result
+
+    async def delete_audio(self, storage_id: str, audio_path: str) -> Union[dict, str]:
+        """删除用户音频
+
+        :return: 删除结果
+        """
+        result = self.__get_predictor().delete_audio(storage_id, audio_path)
         return result
 
 

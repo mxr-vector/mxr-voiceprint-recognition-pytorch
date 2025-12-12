@@ -463,6 +463,43 @@ class MVectorPredictor:
         else:
             return False
 
+    def delete_audio(self, user_name, audio_path):
+        """删除用户音频
+
+        :param user_name: 用户名
+        :param audio_id: 音频ID
+        :return: 删除结果
+        """
+        if user_name in self.users_name and user_name in self.users_name_mean:
+            indexes = [
+                i
+                for i in range(len(self.users_name))
+                if self.users_name[i] == user_name
+            ]
+            for index in sorted(indexes, reverse=True):
+                file_path = self.users_audio_path[index]
+                if file_path == audio_path:
+                    # 先删除物理文件
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    # 再删除列表和字典元素
+                    del self.users_name[index]
+                    del self.users_audio_path[index]
+                    del self.user_dicts[user_name][index]
+                    self.audio_feature = np.delete(self.audio_feature, index, axis=0)
+                    break
+            self.__write_index()
+            # 更新检索内的特征
+            index = self.users_name_mean.index(user_name)
+            indexes = [
+                idx for idx, val in enumerate(self.users_name) if val == user_name
+            ]
+            feature = self.audio_feature[indexes].mean(axis=0)
+            self.audio_feature_mean[index] = feature
+            return True
+        else:
+            return False
+
     def speaker_diarization(
         self, audio_data, sample_rate=16000, speaker_num=None, search_audio_db=False
     ):
