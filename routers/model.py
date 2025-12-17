@@ -62,7 +62,7 @@ async def recognitionAudio(
 
 
 # 说话人日志识别
-@router.post("/speaker_diarization")
+@router.post("/speaker_diarization", response_model_exclude_none=False)
 async def speaker_diarization(
     speaker_num: int = Form(None, description="说话人数量"),
     audio_data: UploadFile = File(..., description="音频文件"),
@@ -71,9 +71,7 @@ async def speaker_diarization(
     results = await singleVoiceprintService.speaker_diarization(
         audio_segment, speaker_num
     )
-    if results is None:
-        return R.fail("模型内部识别异常")
-    return R.success(results) if results else R.fail("声纹库未检索到说话人")
+    return R.success(results)
 
 
 # 获取所有用户
