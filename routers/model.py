@@ -71,7 +71,9 @@ async def speaker_diarization(
     results = await singleVoiceprintService.speaker_diarization(
         audio_segment, speaker_num
     )
-    return R.success(results)
+    if results is None:
+        return R.fail("模型内部识别异常")
+    return R.success(results) if results else R.fail("声纹库未检索到说话人")
 
 
 # 获取所有用户
@@ -83,12 +85,14 @@ async def getUsers() -> Union[R]:
 
 # 清空用户音频
 @router.delete("/clear")
-async def clearAudio(storage_id: str = Query(..., description="用户目录id")) -> Union[R]:
+async def clearAudio(
+    storage_id: str = Query(..., description="用户目录id")
+) -> Union[R]:
     result = await singleVoiceprintService.clear_user(storage_id)
     return R.success("删除成功") if result else R.fail("删除失败")
 
 
-# 删除用户的音频
+# 删除用户声纹
 @router.delete("/delete")
 async def deleteAudio(
     storage_id: str = Query(..., description="用户目录id"),

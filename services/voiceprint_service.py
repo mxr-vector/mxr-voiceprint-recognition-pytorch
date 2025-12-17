@@ -73,7 +73,7 @@ class __VoiceprintService:
         audio_segment: AudioSegment,
         speaker_num: int = None,
         search_audio_db: bool = True,
-    ) -> Union[list, str]:
+    ) -> Union[list]:
         """说话人日志识别
 
         :param audio_path: 音频路径
