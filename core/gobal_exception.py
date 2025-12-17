@@ -25,7 +25,14 @@ def register_exception(app):
         return JSONResponse(
             content=R.fail(msg=f"参数验证失败",data=exc.errors()).model_dump()
         )
-
+    @app.exception_handler(AssertionError)
+    async def assertion_exception_handler(request: Request, exc: AssertionError):
+        logger.warning("参数校验失败: %s", exc)
+        return JSONResponse(
+            status_code=400,
+            content=R.fail(msg=str(exc)).model_dump()
+    )
+    
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
         logger.exception("服务器内部错误", exc_info=exc)

@@ -8,7 +8,9 @@ from yeaudio.audio import AudioSegment
 
 class SpeakerDiarization(object):
 
-    def __init__(self, seg_duration=1.5, seg_shift=0.75, sample_rate=16000, merge_threshold=0.78):
+    def __init__(
+        self, seg_duration=1.5, seg_shift=0.75, sample_rate=16000, merge_threshold=0.78
+    ):
         """说话人日志工具
 
         Args:
@@ -24,7 +26,7 @@ class SpeakerDiarization(object):
         self.spectral_cluster = SpectralCluster()
 
     def segments_audio(self, audio_segment: AudioSegment) -> list:
-        """ 从音频段中分割出有效的语音段。
+        """从音频段中分割出有效的语音段。
 
         Args:
             audio_segment (AudioSegment): 要分割的音频段对象。
@@ -36,9 +38,15 @@ class SpeakerDiarization(object):
         self.sample_rate = audio_segment.sample_rate
         vad_time_list = audio_segment.vad(return_seconds=True)
         for t in vad_time_list:
-            st = round(t['start'], 3)
-            ed = round(t['end'], 3)
-            vad_segments.append([st, ed, samples[int(st * self.sample_rate):int(ed * self.sample_rate)]])
+            st = round(t["start"], 3)
+            ed = round(t["end"], 3)
+            vad_segments.append(
+                [
+                    st,
+                    ed,
+                    samples[int(st * self.sample_rate) : int(ed * self.sample_rate)],
+                ]
+            )
         self._check_audio_list(vad_segments)
         segments = self._chunk(vad_segments)
         return segments
@@ -48,13 +56,18 @@ class SpeakerDiarization(object):
         audio_duration = 0
         for i in range(len(audio)):
             seg = audio[i]
-            assert seg[1] >= seg[0], '分割的时间戳错误'
-            assert isinstance(seg[2], np.ndarray), '数据的类型不正确'
-            assert int(seg[1] * self.sample_rate) - int(seg[0] * self.sample_rate) == seg[2].shape[0], '时间长度和数据长度不匹配'
+            assert seg[1] >= seg[0], "分割的时间戳错误"
+            assert isinstance(seg[2], np.ndarray), "数据的类型不正确"
+            assert (
+                int(seg[1] * self.sample_rate) - int(seg[0] * self.sample_rate)
+                == seg[2].shape[0]
+            ), "时间长度和数据长度不匹配"
             if i > 0:
-                assert seg[0] >= audio[i - 1][1], 'modelscope error: Wrong time stamps.'
+                assert seg[0] >= audio[i - 1][1], "modelscope error: Wrong time stamps."
             audio_duration += seg[1] - seg[0]
-        assert audio_duration > 5, f'音频时间过短，应当大于5秒，当前长度是{audio_duration}秒'
+        assert (
+            audio_duration > 5
+        ), f"音频时间过短，应当大于5秒，当前长度是{audio_duration}秒"
 
     # 将音频片段继续细分割成固定长度的片段
     def _chunk(self, vad_segments: list) -> list:
@@ -74,11 +87,16 @@ class SpeakerDiarization(object):
                 chunk_st = max(0, chunk_ed - chunk_len)
                 chunk_data = data[chunk_st:chunk_ed]
                 if chunk_data.shape[0] < chunk_len:
-                    chunk_data = np.pad(chunk_data, (0, chunk_len - chunk_data.shape[0]), 'constant')
-                seg_res.append([
-                    chunk_st / self.sample_rate + seg_st, chunk_ed / self.sample_rate + seg_st,
-                    chunk_data
-                ])
+                    chunk_data = np.pad(
+                        chunk_data, (0, chunk_len - chunk_data.shape[0]), "constant"
+                    )
+                seg_res.append(
+                    [
+                        chunk_st / self.sample_rate + seg_st,
+                        chunk_ed / self.sample_rate + seg_st,
+                        chunk_data,
+                    ]
+                )
             return seg_res
 
         segs = []
@@ -86,7 +104,9 @@ class SpeakerDiarization(object):
             segs.extend(seg_chunk(s))
         return segs
 
-    def clustering(self, embeddings: np.ndarray, speaker_num=None) -> [np.ndarray, np.ndarray]:
+    def clustering(
+        self, embeddings: np.ndarray, speaker_num=None
+    ) -> [np.ndarray, np.ndarray]:
         """聚类音频特征向量，返回聚类后的标签数组
 
         Args:
@@ -122,7 +142,9 @@ class SpeakerDiarization(object):
                 spk_center.append(spk_emb)
             assert len(spk_center) > 0
             spk_center = np.stack(spk_center, axis=0)
-            norm_spk_center = spk_center / np.linalg.norm(spk_center, axis=1, keepdims=True)
+            norm_spk_center = spk_center / np.linalg.norm(
+                spk_center, axis=1, keepdims=True
+            )
             affinity = np.matmul(norm_spk_center, norm_spk_center.T)
             affinity = np.triu(affinity, 1)
             spks = np.unravel_index(np.argmax(affinity), affinity.shape)
@@ -169,7 +191,13 @@ class SpeakerDiarization(object):
         # 将结果转换为字典形式
         results = []
         for result in distribute_res:
-            results.append(dict(speaker=result[2], start=round(result[0], 3), end=round(result[1], 3)))
+            results.append(
+                dict(
+                    speaker=result[2],
+                    start=round(result[0], 3),
+                    end=round(result[1], 3),
+                )
+            )
 
         return results
 
@@ -259,7 +287,7 @@ class SpectralCluster:
     # 根据阈值pval修剪相似度矩阵A
     def p_pruning(self, A):
         if A.shape[0] * self.pval < 6:
-            pval = 6. / A.shape[0]
+            pval = 6.0 / A.shape[0]
         else:
             pval = self.pval
         n_elems = int((1 - pval) * A.shape[0])
@@ -288,7 +316,9 @@ class SpectralCluster:
         if k_oracle is not None:
             num_of_spk = k_oracle
         else:
-            lambda_gap_list = self.get_eigen_gaps(lambdas[self.min_num_spks - 1:self.max_num_spks + 1])
+            lambda_gap_list = self.get_eigen_gaps(
+                lambdas[self.min_num_spks - 1 : self.max_num_spks + 1]
+            )
             num_of_spk = np.argmax(lambda_gap_list) + self.min_num_spks
 
         emb = eig_vecs[:, :num_of_spk]
