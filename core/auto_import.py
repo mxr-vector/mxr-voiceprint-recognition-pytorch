@@ -2,13 +2,13 @@ import importlib
 import pkgutil
 from fastapi import FastAPI, APIRouter
 from core.logger import logger
-
+from core.config import args
 
 def load_routers(app: FastAPI, package: str = "routers"):
     """
     递归扫描 routers 包及所有子包，注册每个模块中的 router 对象
     """
-    parent_router = APIRouter(prefix="/voiceprint/api/v1")
+    parent_router = APIRouter(prefix=args.base_url)
 
     # 加载包
     try:

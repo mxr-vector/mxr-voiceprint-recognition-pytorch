@@ -19,5 +19,8 @@ def __build_parser():
     add_arg("search_audio_db", bool, True, help="是否在音频库中搜索对应的说话人")
     add_arg("use_gpu", bool, torch.cuda.is_available(), help="是否使用GPU预测")
     add_arg("web_secret_key", str, "voiceprint-open-api-token", "接口请求秘钥")
+    add_arg("host", str, "0.0.0.0", "服务启动IP地址")
+    add_arg("port", int, 8000, "服务启动端口")
+    add_arg("base_url", str, "/voiceprint/api/v1", "接口基础路径")
     return parser
 args = __build_parser().parse_args()
