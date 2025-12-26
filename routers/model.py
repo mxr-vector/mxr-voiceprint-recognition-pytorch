@@ -100,12 +100,14 @@ async def deleteAudio(
     return R.success("删除成功") if result else R.fail("删除失败")
 
 
-# 预览文件
+# 声纹检测预览接口
 @router.get("/preview")
 async def preview(
-    file_url: str = Query(..., description="预览文件相对地址")
+    file_url: str = Query(..., description="声纹文件相对地址")
 ) -> Union[FileResponse]:
-    return FileResponse(file_url)
+    return FileResponse(
+        path=file_url, media_type="audio/wav", headers={"Accept-Ranges": "bytes"}
+    )
 
 ALLOWED_AUDIO_TYPES = [
     "audio/wav",
