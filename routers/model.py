@@ -1,13 +1,13 @@
 from typing import Union
 from fastapi import APIRouter, UploadFile, HTTPException, File, Form, Body, Query, Path
 from fastapi.responses import FileResponse
-from services.voiceprint_service import singleVoiceprintService
+from services import singleVoiceprintService, singleWallowService
 from core.response import R
 from yeaudio.audio import AudioSegment
 from core.config import args
 
 # 创建路由
-router = APIRouter(prefix="/model", tags=["OpenAPI - 声纹识别开放接口"])
+router = APIRouter(prefix="/model", tags=["OpenAPI - 音频表征识别开放接口"])
 
 
 # 获取音频特征
@@ -109,6 +109,25 @@ async def preview(
         path=file_url, media_type="audio/wav", headers={"Accept-Ranges": "bytes"}
     )
 
+
+# 吞音检测接口
+@router.post("/swollow")
+async def swollow(
+    lang: str = Form(..., description="语言"),
+    reference_text: str = Form(None, description="参考文本"),
+    audio_data: UploadFile = File(..., description="音频文件"),
+    is_show_mel: bool = Form(False, description="是否显示mel谱"),
+) -> Union[R]:
+    audio_segment = validate_audio_file(audio_data)
+    result = await singleWallowService.analyze(
+        lang=lang,
+        audio_data=audio_segment,
+        reference_text=reference_text,
+        is_show_mel=is_show_mel,
+    )
+    return R.success(result)
+
+
 ALLOWED_AUDIO_TYPES = [
     "audio/wav",
     "audio/mp3",
@@ -133,7 +152,7 @@ def validate_audio_file(
             detail=f"文件格式错误: {audio_data.content_type}，仅支持 {ALLOWED_AUDIO_TYPES}",
         )
     "校验文件大小"
-    MAX_FILE_SIZE = 30 * 1024 * 1024  # 30MB
+    MAX_FILE_SIZE = 300 * 1024 * 1024  # 300MB
     audio_data.file.seek(0, 2)  # 移动到文件末尾
     file_size = audio_data.file.tell()
     audio_data.file.seek(0)  # 重置文件指针到开头
@@ -143,7 +162,7 @@ def validate_audio_file(
             detail=f"文件大小超出限制: {file_size / (1024 * 1024):.2f}MB，最大允许 {MAX_FILE_SIZE / (1024 * 1024)}MB",
         )
     audio_segment = AudioSegment.from_file(audio_data.file)
-    "若为录制音频，则校验音频时长"
+    "若为声纹音频，则校验音频时长"
     if is_voiceprint:
         duration = audio_segment.duration
         max_duration = args.record_seconds

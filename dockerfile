@@ -19,17 +19,10 @@ WORKDIR /workspace
 COPY pyproject.toml .python-version ./
 
 # 使用 uv 安装虚拟环境和依赖
-RUN uv sync --python 3.11
+RUN uv sync --python 3.11 --extra cu128
 
 # 给 run.sh 可执行权限
 RUN chmod +x run.sh && mkdir -p logs
-
-# 手动安装 GPU PyTorch
-RUN uv pip install \
-    torch==2.9.0 \
-    torchvision==0.24.0 \
-    torchaudio==2.9.0 \
-    --index-url https://download.pytorch.org/whl/cu128
 
 # 再拷贝项目代码
 COPY . .

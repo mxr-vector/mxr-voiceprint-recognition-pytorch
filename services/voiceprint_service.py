@@ -1,7 +1,6 @@
 from mvector.predict import MVectorPredictor
-from typing import Union
 import argparse
-from typing import Optional
+from typing import Optional, Union
 from yeaudio.audio import AudioSegment
 from core.config import args as main_args
 
@@ -18,7 +17,7 @@ class __VoiceprintService:
     def __get_predictor(self) -> MVectorPredictor:
         return MVectorPredictor(
             configs=self.args.configs,
-            model_path=self.args.model_path,
+            model_path=self.args.speaker_embedding_model_path,
             threshold=self.args.threshold,
             audio_db_path=self.args.audio_db_path,
             use_gpu=self.args.use_gpu,
