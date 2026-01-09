@@ -151,17 +151,18 @@ def validate_audio_file(
             status_code=400,
             detail=f"文件格式错误: {audio_data.content_type}，仅支持 {ALLOWED_AUDIO_TYPES}",
         )
+    audio_bytes = audio_data.file.read()
+    audio_segment = AudioSegment.from_bytes(audio_bytes)
+    audio_data.file.seek(0)  # 重置文件指针到开头
     "校验文件大小"
     MAX_FILE_SIZE = 300 * 1024 * 1024  # 300MB
     audio_data.file.seek(0, 2)  # 移动到文件末尾
     file_size = audio_data.file.tell()
-    audio_data.file.seek(0)  # 重置文件指针到开头
     if file_size > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=400,
             detail=f"文件大小超出限制: {file_size / (1024 * 1024):.2f}MB，最大允许 {MAX_FILE_SIZE / (1024 * 1024)}MB",
         )
-    audio_segment = AudioSegment.from_file(audio_data.file)
     "若为声纹音频，则校验音频时长"
     if is_voiceprint:
         duration = audio_segment.duration
@@ -169,6 +170,6 @@ def validate_audio_file(
         if duration > max_duration:
             raise HTTPException(
                 status_code=400,
-                detail=f"音频时长超出限制: {duration:.2f}s，最大允许 {max_duration}s",
+                detail=f"音频时长超出限制: {duration:.2f}s, 最大允许 {max_duration}s",
             )
     return audio_segment
