@@ -4,7 +4,6 @@ from core.config import args
 from io import BufferedReader
 from tempfile import SpooledTemporaryFile
 import numpy as np
-from typing import Union
 MAX_AUDIO_SEC = 3600 
 MAX_FILE_SIZE = 220  # 1小时 一小时16k,单声道的wav大约为219.73mb
 
