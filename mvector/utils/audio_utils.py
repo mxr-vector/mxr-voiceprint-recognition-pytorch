@@ -69,8 +69,8 @@ def load_audio_segment(
     ), f"音频太短，最小应该为{args.configs.dataset_conf.dataset.min_duration}s，当前音频为{audio_segment.duration}s"
 
     # ---------- 2. 重采样 + 单声道 ----------
-    if audio_segment.sample_rate != args.configs.dataset_conf.dataset.sample_rate:
-        audio_segment.resample(args.configs.dataset_conf.dataset.sample_rate)
+    if audio_segment.sample_rate != sample_rate:
+        audio_segment.resample(sample_rate)
     "校验音频时长"
     duration = audio_segment.duration
     if duration > MAX_AUDIO_SEC:
