@@ -23,7 +23,7 @@ class __VoiceprintService:
             use_gpu=self.args.use_gpu,
         )
 
-    async def predict(self, audio_segment: object) -> Union[dict, str]:
+    async def predict(self, audio_segment: AudioSegment) -> Union[dict, str]:
         """预测
 
         :param audio_data: 音频数据
@@ -33,7 +33,7 @@ class __VoiceprintService:
         return embedding.tolist()
 
     async def contrast(
-        self, audio_segment1: object, audio_segment2: object
+        self, audio_segment1: AudioSegment, audio_segment2: AudioSegment
     ) -> Union[dict, str]:
         """对比两个音频的相似度
         :param audio_data1: 音频数据1

@@ -8,8 +8,8 @@ import numpy as np
 import librosa
 from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
 from pypinyin import pinyin, Style
-from fastapi import UploadFile
-from typing import Union
+from mvector.utils.audio_utils import load_audio_segment
+from yeaudio.audio import AudioSegment
 
 # ============================================================
 # 全局配置（已添加详细注释）
@@ -169,23 +169,23 @@ class SwallowPredictor:
         # TODO 后续扩展s2方案无参考文本的 admm惩罚项优化
         self.use_admm = use_admm
     # ---------- forward ----------
-    def forward(self, wav_data: np.array) -> tuple:
+    def forward(self, audio_segment: AudioSegment) -> tuple:
         """
         前向推理接口：从文件加载音频并通过模型得到 logits（不进行 softmax）。
         参数：
-          - wav_data: audio 文件路径（被 librosa 加载并重采样到 SAMPLE_RATE）
+          - audio_segment: audio 文件路径（被 librosa 加载并重采样到 SAMPLE_RATE）
         返回：
           - wav: numpy 一维数组（原始音频波形）
           - logits: torch.Tensor，shape (T, C) 的模型输出 logits（未归一化）
         注意：
           - 返回的 logits 仍在 DEVICE（cuda/CPU），调用方在分析时会在 CPU 上计算进一步指标。
         """
-        inputs = self.processor(
-            wav_data, sampling_rate=SAMPLE_RATE, return_tensors="pt"
-        )
+        # 转成 np.float32，保证后续处理兼容
+        wav = audio_segment.samples.astype(np.float32)
+        inputs = self.processor(wav, sampling_rate=SAMPLE_RATE, return_tensors="pt")
         with torch.no_grad():
             logits = self.model(inputs.input_values.to(self.device)).logits
-        return wav_data, logits[0]
+        return wav, logits[0]
 
     # ---------- CTC segmentation ----------
     def ctc_segments(self, logits: torch.Tensor):
@@ -349,7 +349,9 @@ class SwallowPredictor:
         return S2, reasons
 
     # ---------- 分析入口 ----------
-    def analyze(self, wav_data: Union[str,UploadFile], reference_text: str, is_show_mel=False) -> dict:
+    def analyze(
+        self, audio_segment: AudioSegment, reference_text: str, is_show_mel=False
+    ) -> dict:
         """
         主分析入口：对给定音频执行完整流程并返回结构化结果。
         参数：
@@ -364,8 +366,8 @@ class SwallowPredictor:
         说明：
           - 方法内部会计算多种帧级特征：RMS、ZCR、谱质心、谱带宽、基频等，用于 score_s2。
         """
-        wav = load_audio(wav_data,SAMPLE_RATE)
-        wav, logits = self.forward(wav)
+        audio_segment = load_audio_segment(audio_segment, SAMPLE_RATE)
+        wav, logits = self.forward(audio_segment)
         show_melspec(wav) if is_show_mel else None
         segments = self.ctc_segments(logits)
 
@@ -637,35 +639,6 @@ def show_melspec(audio_array: np.ndarray):
     plt.show()
 
 
-def load_audio(source: Union[str, UploadFile], target_sr: int)-> np.ndarray:
-    """
-    统一音频加载入口：
-    - str        → 本地路径
-    - UploadFile → 内存音频
-    返回：
-      - wav: np.ndarray (float32, mono, target_sr)
-    """
-    from yeaudio.audio import AudioSegment
-    # ---------- 本地路径 ----------
-    if isinstance(source, str):
-        seg = AudioSegment.from_file(source)
-
-    # ---------- UploadFile ----------
-    elif isinstance(source, UploadFile):
-        audio_bytes = source.file.read()
-        seg = AudioSegment.from_bytes(audio_bytes)
-
-    else:
-        raise TypeError(f"Unsupported audio source type: {type(source)}")
-
-    # 统一处理
-    seg = seg.resample(target_sr).to_mono()
-
-    wav = seg.samples.astype("float32")
-
-    return wav
-
-
 # ============================================================
 # 示例运行
 # ============================================================
@@ -677,7 +650,7 @@ if __name__ == "__main__":
     audio_path = "datasets/a_1.wav"
     reference_text = "我要定从高碑店东站到北京西的火车票"
     result = detector.analyze(
-        audio_path=audio_path, reference_text=reference_text, is_show_mel=False
+        audio_data=audio_path, reference_text=reference_text, is_show_mel=False
     )
 
     # detector = SwallowPredictor(language="english", use_admm=False)

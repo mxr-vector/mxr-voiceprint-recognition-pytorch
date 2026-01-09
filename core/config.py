@@ -51,7 +51,7 @@ def __build_parser():
         "语音表征CTC 音素检测模型文件路径",
     )
     add_arg("risk_threshold", float, 0.5, " 高风险阈值")
-    add_arg("severe_threshold",float, 0.7, " 疑似吞音风险阈值")
+    add_arg("severe_threshold", float, 0.7, " 疑似吞音风险阈值")
     # 通用参数
     add_arg("use_gpu", bool, torch.cuda.is_available(), help="是否使用GPU预测")
     add_arg("web_secret_key", str, "voiceprint-open-api-token", "接口请求秘钥")

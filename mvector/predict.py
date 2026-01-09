@@ -17,6 +17,7 @@ from mvector.data_utils.featurizer import AudioFeaturizer
 from mvector.infer_utils.speaker_diarization import SpeakerDiarization
 from mvector.models import build_model
 from mvector.utils.checkpoint import load_pretrained
+from mvector.utils.audio_utils import load_audio_segment
 from mvector.utils.utils import (
     dict_to_object,
     print_arguments,
@@ -282,7 +283,7 @@ class MVectorPredictor:
             )
         return audio_segment
 
-    def predict(self, audio_data, sample_rate=16000):
+    def predict(self, audio_data: AudioSegment, sample_rate=16000):
         """预测一个音频的特征
 
         :param audio_data: 需要识别的数据，支持文件路径，文件对象，字节，numpy，AudioSegment对象。如果是字节的话，必须是完整并带格式的字节文件
@@ -290,7 +291,7 @@ class MVectorPredictor:
         :return: 声纹特征向量
         """
         # 加载音频文件，并进行预处理
-        input_data = self._load_audio(audio_data=audio_data, sample_rate=sample_rate)
+        input_data = load_audio_segment(audio_data=audio_data, sample_rate=sample_rate)
         input_data = torch.tensor(input_data.samples, dtype=torch.float32).unsqueeze(0)
         audio_feature = self._audio_featurizer(input_data).to(self.device)
         # 执行预测
@@ -337,7 +338,7 @@ class MVectorPredictor:
         features = np.array(features)
         return features
 
-    def contrast(self, audio_data1, audio_data2):
+    def contrast(self, audio_data1: AudioSegment, audio_data2: AudioSegment):
         """声纹对比
 
         param audio_data1: 需要对比的音频1，支持文件路径，文件对象，字节，numpy，AudioSegment对象。如果是字节的话，必须是完整的字节文件
@@ -353,7 +354,7 @@ class MVectorPredictor:
         )
         return dist
 
-    def register(self, audio_data, user_name: str, sample_rate=16000):
+    def register(self, audio_data: AudioSegment, user_name: str):
         """声纹注册
         :param audio_data: 需要识别的数据，支持文件路径，文件对象，字节，numpy。如果是字节的话，必须是完整的字节文件
         :param user_name: 注册用户的名字
@@ -361,8 +362,7 @@ class MVectorPredictor:
         :return: 识别的文本结果和解码的得分数
         """
         # 加载音频文件
-        audio_segment = self._load_audio(audio_data=audio_data, sample_rate=sample_rate)
-        feature = self.predict(audio_data=audio_segment)
+        feature = self.predict(audio_data=audio_data)
         if self.audio_feature is None:
             self.audio_feature = feature[np.newaxis, :]
         else:
@@ -410,7 +410,7 @@ class MVectorPredictor:
         is_save = True
         return is_save, user_name, audio_path
 
-    def recognition(self, audio_data, threshold=None, sample_rate=16000):
+    def recognition(self, audio_data: AudioSegment, threshold=None, sample_rate=16000):
         """声纹识别
 
         Args:
@@ -501,7 +501,11 @@ class MVectorPredictor:
             return False
 
     def speaker_diarization(
-        self, audio_data, sample_rate=16000, speaker_num=None, search_audio_db=False
+        self,
+        audio_data: AudioSegment,
+        sample_rate=16000,
+        speaker_num=None,
+        search_audio_db=False,
     ):
         """说话人日志识别
 
@@ -513,7 +517,7 @@ class MVectorPredictor:
         Returns:
             list: 说话人日志识别结果
         """
-        input_data = self._load_audio(audio_data=audio_data, sample_rate=sample_rate)
+        input_data = load_audio_segment(audio_data=audio_data, sample_rate=sample_rate)
         segments = self.speaker_diarize.segments_audio(input_data)
         segments_data = [segment[2] for segment in segments]
         features = self.predict_batch(segments_data, sample_rate=sample_rate)

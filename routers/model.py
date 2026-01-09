@@ -1,10 +1,9 @@
 from typing import Union
-from fastapi import APIRouter, UploadFile, HTTPException, File, Form, Body, Query, Path
+from fastapi import APIRouter, UploadFile, File, Form, Body, Query, Path
 from fastapi.responses import FileResponse
 from services import singleVoiceprintService, singleWallowService
 from core.response import R
-from yeaudio.audio import AudioSegment
-from core.config import args
+from mvector.utils.audio_utils import load_audio_segment
 
 # 创建路由
 router = APIRouter(prefix="/model", tags=["OpenAPI - 音频表征识别开放接口"])
@@ -15,7 +14,7 @@ router = APIRouter(prefix="/model", tags=["OpenAPI - 音频表征识别开放接
 async def getEmbedding(
     audio_data: UploadFile = File(..., description="音频文件"),
 ) -> Union[R]:
-    audio_segment = validate_audio_file(audio_data, is_voiceprint=True)
+    audio_segment = load_audio_segment(audio_data, is_voiceprint=True)
     embedding = await singleVoiceprintService.predict(audio_segment)
     return R.success(embedding)
 
@@ -26,8 +25,8 @@ async def getSimilarity(
     audio_data1: UploadFile = File(..., description="音频文件1"),
     audio_data2: UploadFile = File(..., description="音频文件2"),
 ) -> Union[R]:
-    audio_segment1 = validate_audio_file(audio_data1, is_voiceprint=True)
-    audio_segment2 = validate_audio_file(audio_data2, is_voiceprint=True)
+    audio_segment1 = load_audio_segment(audio_data1, is_voiceprint=True)
+    audio_segment2 = load_audio_segment(audio_data2, is_voiceprint=True)
     similarity, threshold = await singleVoiceprintService.contrast(
         audio_segment1, audio_segment2
     )
@@ -40,7 +39,7 @@ async def registerAudio(
     storage_id: str = Form(..., description="声纹id"),
     audio_data: UploadFile = File(..., description="音频文件"),
 ) -> Union[R]:
-    audio_segment = validate_audio_file(audio_data, is_voiceprint=True)
+    audio_segment = load_audio_segment(audio_data, is_voiceprint=True)
     is_save, storage_id, audio_path = await singleVoiceprintService.register(
         storage_id, audio_segment
     )
@@ -56,7 +55,7 @@ async def registerAudio(
 async def recognitionAudio(
     audio_data: UploadFile = File(..., description="音频文件")
 ) -> Union[R]:
-    audio_segment = validate_audio_file(audio_data)
+    audio_segment = load_audio_segment(audio_data)
     storage_id, score = await singleVoiceprintService.recognition(audio_segment)
     return R.success({"storage_id": storage_id, "score": score})
 
@@ -67,7 +66,7 @@ async def speaker_diarization(
     speaker_num: int = Form(None, description="说话人数量"),
     audio_data: UploadFile = File(..., description="音频文件"),
 ) -> Union[R]:
-    audio_segment = validate_audio_file(audio_data)
+    audio_segment = load_audio_segment(audio_data)
     results = await singleVoiceprintService.speaker_diarization(
         audio_segment, speaker_num
     )
@@ -118,58 +117,11 @@ async def swollow(
     audio_data: UploadFile = File(..., description="音频文件"),
     is_show_mel: bool = Form(False, description="是否显示mel谱"),
 ) -> Union[R]:
-    audio_segment = validate_audio_file(audio_data)
+    audio_segment = load_audio_segment(audio_data)
     result = await singleWallowService.analyze(
         lang=lang,
-        audio_data=audio_segment,
+        audio_segment=audio_segment,
         reference_text=reference_text,
         is_show_mel=is_show_mel,
     )
     return R.success(result)
-
-
-ALLOWED_AUDIO_TYPES = [
-    "audio/wav",
-    "audio/mp3",
-    "audio/flac",
-    "audio/wave",
-    "audio/x-wav",
-]
-
-
-def validate_audio_file(
-    audio_data: UploadFile, is_voiceprint: bool = False
-) -> AudioSegment:
-    """
-    校验上传的音频文件 格式 大小 时长
-    :param audio_data: 上传的音频文件
-    :param is_voiceprint: 是否为声纹录制音频
-    """
-    "校验文件格式"
-    if audio_data.content_type not in ALLOWED_AUDIO_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"文件格式错误: {audio_data.content_type}，仅支持 {ALLOWED_AUDIO_TYPES}",
-        )
-    audio_bytes = audio_data.file.read()
-    audio_segment = AudioSegment.from_bytes(audio_bytes)
-    audio_data.file.seek(0)  # 重置文件指针到开头
-    "校验文件大小"
-    MAX_FILE_SIZE = 300 * 1024 * 1024  # 300MB
-    audio_data.file.seek(0, 2)  # 移动到文件末尾
-    file_size = audio_data.file.tell()
-    if file_size > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail=f"文件大小超出限制: {file_size / (1024 * 1024):.2f}MB，最大允许 {MAX_FILE_SIZE / (1024 * 1024)}MB",
-        )
-    "若为声纹音频，则校验音频时长"
-    if is_voiceprint:
-        duration = audio_segment.duration
-        max_duration = args.record_seconds
-        if duration > max_duration:
-            raise HTTPException(
-                status_code=400,
-                detail=f"音频时长超出限制: {duration:.2f}s, 最大允许 {max_duration}s",
-            )
-    return audio_segment

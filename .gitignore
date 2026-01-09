@@ -5,7 +5,7 @@ dist/
 mvector.egg-info/
 log/
 test*.py
-
+dataset/
 audio_db/
 output/
 models/

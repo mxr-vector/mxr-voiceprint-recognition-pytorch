@@ -2,7 +2,7 @@ from typing import Optional
 from core.config import args as main_args
 import argparse
 from mvector.swallow_predictor import SwallowPredictor
-
+from yeaudio.audio import AudioSegment
 
 class __SwallowPredictorService:
     """
@@ -35,7 +35,11 @@ class __SwallowPredictorService:
         )
 
     def analyze(
-        self, lang: str, reference_text: str, audio_data: str, is_show_mel=False
+        self,
+        lang: str,
+        reference_text: str,
+        audio_segment: AudioSegment,
+        is_show_mel=False,
     ) -> dict:
         """
         :param wav_data: 上传的文件
@@ -45,9 +49,12 @@ class __SwallowPredictorService:
         :rtype: dict
         """
         res = self.__get_swallow_predictor(lang).analyze(
-            reference_text=reference_text, wav_path=audio_data, is_show_mel=is_show_mel
+            reference_text=reference_text,
+            audio_segment=audio_segment,
+            is_show_mel=is_show_mel,
         )
         return res
+
 
 # ---- 单例 ----
 singleWallowService = __SwallowPredictorService()
