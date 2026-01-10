@@ -345,15 +345,15 @@ class MVectorPredictor:
         )
         return dist
 
-    def register(self, audio_data: AudioSegment, user_name: str):
+    def register(self, audio_segment: AudioSegment, user_name: str):
         """声纹注册
-        :param audio_data: 需要识别的数据，支持文件路径，文件对象，字节，numpy。如果是字节的话，必须是完整的字节文件
+        :param audio_segment: 需要识别的数据，支持文件路径，文件对象，字节，numpy。如果是字节的话，必须是完整的字节文件
         :param user_name: 注册用户的名字
         :param sample_rate: 如果传入的事numpy数据，需要指定采样率
         :return: 识别的文本结果和解码的得分数
         """
         # 加载音频文件
-        feature = self.predict(audio_data=audio_data)
+        feature = self.predict(audio_data=audio_segment)
         if self.audio_feature is None:
             self.audio_feature = feature[np.newaxis, :]
         else:
@@ -433,6 +433,9 @@ class MVectorPredictor:
         :param user_name: 用户名
         :return:
         """
+        from pathlib import Path
+
+        user_dir = Path(self.audio_db_path) / user_name
         if user_name in self.users_name and user_name in self.users_name_mean:
             indexes = [
                 i
@@ -445,14 +448,17 @@ class MVectorPredictor:
                 self.audio_feature = np.delete(self.audio_feature, index, axis=0)
             del self.user_dicts[user_name]
             self.__write_index()
-            shutil.rmtree(os.path.join(self.audio_db_path, user_name))
+            shutil.rmtree(user_dir)
             # 删除检索内的特征
             index = self.users_name_mean.index(user_name)
             del self.users_name_mean[index]
             self.audio_feature_mean = np.delete(self.audio_feature_mean, index, axis=0)
             return True
-        else:
-            return False
+        # 该情况：用户目录下没有文件，但用户名存在，则删除用户名
+        if user_dir.exists() and user_dir.is_dir() and not any(user_dir.iterdir()):
+            user_dir.rmdir()
+            return True
+        return False
 
     def delete_audio(self, user_name, audio_path):
         """删除用户音频
@@ -476,7 +482,11 @@ class MVectorPredictor:
                     # 再删除列表和字典元素
                     del self.users_name[index]
                     del self.users_audio_path[index]
-                    del self.user_dicts[user_name][index]
+                    # index是用户id在缓存中的位置，但是 用户所拥有的声纹id在缓存中的位置不是index,
+                    voices = self.user_dicts[user_name]
+                    for idx, pos in enumerate(voices):
+                        if pos == file_path:
+                            del self.user_dicts[user_name][idx]
                     self.audio_feature = np.delete(self.audio_feature, index, axis=0)
                     break
             self.__write_index()
