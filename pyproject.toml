@@ -9,6 +9,7 @@ dependencies = [
     "install>=1.3.5",
     "librosa>=0.11.0",
     "loguru>=0.7.2",
+    "matplotlib>=3.10.8",
     "numpy>=2.3.5",
     "onnxruntime>=1.23.2",
     "phonemizer>=3.3.0",

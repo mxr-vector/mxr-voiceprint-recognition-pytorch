@@ -1,10 +1,17 @@
 import functools
 import argparse
-from mvector.utils.utils import add_arguments, print_arguments
+from mvector.utils.utils import (
+    add_arguments,
+    print_arguments,
+    dict_to_object,
+    convert_string_based_on_type,
+)
 import torch
+import os
+import yaml
 
 
-def __build_parser():
+def __build_parser_args() -> argparse.ArgumentParser:
     """
     构建参数解析器
     """
@@ -35,7 +42,7 @@ def __build_parser():
     add_arg(
         "ctc_token_model_path",
         str,
-        "./models/ctc/jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn",
+        "jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn",
         "语音表征CTC 字符检测模型文件路径",
     )
     """
@@ -47,7 +54,7 @@ def __build_parser():
     add_arg(
         "ctc_phoneme_model_path",
         str,
-        "./models/ctc/facebook/wav2vec2-large-960h-lv60-self",
+        "facebook/wav2vec2-large-960h-lv60-self",
         "语音表征CTC 音素检测模型文件路径",
     )
     add_arg("risk_threshold", float, 0.5, " 高风险阈值")
@@ -58,7 +65,47 @@ def __build_parser():
     add_arg("host", str, "0.0.0.0", "服务启动IP地址")
     add_arg("port", int, 8000, "服务启动端口")
     add_arg("base_url", str, "/voiceprint/api/v1", "接口基础路径")
-    return parser
+
+    args = parser.parse_args()
+    args.configs = __build_configs(args.configs)
+    return args
 
 
-args = __build_parser().parse_args()
+def __build_configs(
+    configs,
+    overwrites=None,
+) -> dict:
+    """
+    构建配置参数
+    """
+    # 读取配置文件
+    if isinstance(configs, str):
+        # 获取当前程序绝对路径
+        absolute_path = os.path.dirname(__file__)
+        # 获取默认配置文件路径
+        config_path = os.path.join(absolute_path, f"configs/{configs}.yml")
+        configs = config_path if os.path.exists(config_path) else configs
+        with open(configs, "r", encoding="utf-8") as f:
+            configs = yaml.load(f.read(), Loader=yaml.FullLoader)
+    configs = dict_to_object(configs)
+    # 覆盖配置文件中的参数
+    if overwrites:
+        overwrites = overwrites.split(",")
+        for overwrite in overwrites:
+            keys, value = overwrite.strip().split("=")
+            attrs = keys.split(".")
+            current_level = configs
+            for attr in attrs[:-1]:
+                current_level = getattr(current_level, attr)
+            before_value = getattr(current_level, attrs[-1])
+            setattr(
+                current_level,
+                attrs[-1],
+                convert_string_based_on_type(before_value, value),
+            )
+    # 打印配置信息
+    print_arguments(configs=configs)
+    return configs
+
+
+args = __build_parser_args()

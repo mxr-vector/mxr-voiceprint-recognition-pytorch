@@ -24,15 +24,20 @@ class __SwallowPredictorService:
         :param use_admm: 是否使用ADMM,目前未实现
         :return: SwallowPredictor 对象
         """
-        return SwallowPredictor(
-            language=lang,
-            token_model_path=self.args.ctc_token_model_path,
-            phoneme_model_path=self.args.ctc_phoneme_model_path,
-            risk_threshold=self.args.risk_threshold,
-            severe_threshold=self.args.severe_threshold,
-            use_gpu=self.args.use_gpu,
-            use_admm=False,
-        )
+
+        kwargs = {
+            "language": lang,
+            "risk_threshold": self.args.risk_threshold,
+            "severe_threshold": self.args.severe_threshold,
+            "use_gpu": self.args.use_gpu,
+            "use_admm": False,
+        }
+        if self.args.ctc_token_model_path:
+            kwargs["token_model_path"] = self.args.ctc_token_model_path
+
+        if self.args.ctc_phoneme_model_path:
+            kwargs["phoneme_model_path"] = self.args.ctc_phoneme_model_path
+        return SwallowPredictor(**kwargs)
 
     def analyze(
         self,

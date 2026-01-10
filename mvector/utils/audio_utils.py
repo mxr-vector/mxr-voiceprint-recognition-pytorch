@@ -1,24 +1,31 @@
-from fastapi import HTTPException,UploadFile
+from fastapi import HTTPException
+from starlette.datastructures import UploadFile
 from yeaudio.audio import AudioSegment
 from core.config import args
 from io import BufferedReader
 from tempfile import SpooledTemporaryFile
 import numpy as np
-MAX_AUDIO_SEC = 3600 
+
+MAX_AUDIO_SEC = 3600
 MAX_FILE_SIZE = 220  # 1小时 一小时16k,单声道的wav大约为219.73mb
 
-ALLOWED_AUDIO_TYPES = [
+ALLOWED_AUDIO_TYPES = {
     "audio/wav",
+    "audio/x-wav",
+    "audio/wave",
+    "audio/mpeg",  # mp3
     "audio/mp3",
     "audio/flac",
-    "audio/wave",
-    "audio/x-wav",
-]
+    "audio/m4a",
+    "audio/mp4",  # m4a
+    "audio/ogg",
+}
 
 
 def load_audio_segment(
     audio_data,
     sample_rate: int = 16_000,
+    channels: int = 1,
     is_voiceprint: bool = False,
 ) -> AudioSegment:
     """

@@ -56,16 +56,7 @@ class MVectorPredictor:
         self.log_level = log_level.upper()
         logger.remove()
         logger.add(sink=sys.stdout, level=self.log_level)
-        # 读取配置文件
-        if isinstance(configs, str):
-            # 获取当前程序绝对路径
-            absolute_path = os.path.dirname(__file__)
-            # 获取默认配置文件路径
-            config_path = os.path.join(absolute_path, f"configs/{configs}.yml")
-            configs = config_path if os.path.exists(config_path) else configs
-            with open(configs, "r", encoding="utf-8") as f:
-                configs = yaml.load(f.read(), Loader=yaml.FullLoader)
-        self.configs = dict_to_object(configs)
+        self.configs = configs
         # 覆盖配置文件中的参数
         if overwrites:
             overwrites = overwrites.split(",")

@@ -168,6 +168,7 @@ class SwallowPredictor:
         self.language = language
         # TODO 后续扩展s2方案无参考文本的 admm惩罚项优化
         self.use_admm = use_admm
+
     # ---------- forward ----------
     def forward(self, audio_segment: AudioSegment) -> tuple:
         """
@@ -523,7 +524,9 @@ def clamp(x, min_val=0.0, max_val=1.0) -> np.ndarray:
     return np.clip(x, min_val, max_val)
 
 
-def nonlinear_map(S2_linear: float, alpha1=5.0, alpha2=5.0, threshold=0.5) -> np.ndarray:
+def nonlinear_map(
+    S2_linear: float, alpha1=5.0, alpha2=5.0, threshold=0.5
+) -> np.ndarray:
     """
     分段非线性映射优化版（严重吞音指数下降版）
 
