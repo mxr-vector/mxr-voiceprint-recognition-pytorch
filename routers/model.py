@@ -1,9 +1,10 @@
 from typing import Union
 from fastapi import APIRouter, UploadFile, File, Form, Body, Query, Path
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
+import io
 from services import singleVoiceprintService, singleWallowService
 from core.response import R
-from mvector.utils.audio_utils import load_audio_segment
+from mvector.utils.audio_utils import load_audio_segment, show_melspec_to_bytes
 
 # 创建路由
 router = APIRouter(prefix="/model", tags=["OpenAPI - 音频表征识别开放接口"])
@@ -112,16 +113,27 @@ async def preview(
 # 吞音检测接口
 @router.post("/swollow")
 async def swollow(
-    lang: str = Form(..., description="语言"),
+    lang: str = Form("zh-cn", description="语种"),
     reference_text: str = Form(None, description="参考文本"),
     audio_data: UploadFile = File(..., description="音频文件"),
-    is_show_mel: bool = Form(False, description="是否显示mel谱"),
 ) -> Union[R]:
     audio_segment = load_audio_segment(audio_data)
     result = await singleWallowService.analyze(
         lang=lang,
         audio_segment=audio_segment,
         reference_text=reference_text,
-        is_show_mel=is_show_mel,
     )
     return R.success(result)
+
+
+# 显示mel谱
+@router.post("/swallow/preview")
+async def swallow_preview(
+    audio_data: UploadFile = File(..., description="音频文件")
+) -> Union[FileResponse]:
+    img_bytes = show_melspec_to_bytes(audio_data)
+    return StreamingResponse(
+        io.BytesIO(img_bytes),
+        media_type="image/webp",
+        headers={"Accept-Ranges": "bytes"},
+    )

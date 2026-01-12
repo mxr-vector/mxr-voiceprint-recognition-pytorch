@@ -5,9 +5,20 @@ from core.config import args
 from io import BufferedReader
 from tempfile import SpooledTemporaryFile
 import numpy as np
+import librosa
+import matplotlib
 
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import io
+
+
+# 1小时
 MAX_AUDIO_SEC = 3600
-MAX_FILE_SIZE = 220  # 1小时 一小时16k,单声道的wav大约为219.73mb
+#  一小时16k,单声道的wav大约为219.73mb
+MAX_FILE_SIZE = 220
+# 采样率：所有音频在处理前会被重采样到该采样率（Hz）
+SAMPLE_RATE = 16_000
 
 ALLOWED_AUDIO_TYPES = {
     "audio/wav",
@@ -24,8 +35,7 @@ ALLOWED_AUDIO_TYPES = {
 
 def load_audio_segment(
     audio_data,
-    sample_rate: int = 16_000,
-    channels: int = 1,
+    sample_rate: int = SAMPLE_RATE,
     is_voiceprint: bool = False,
 ) -> AudioSegment:
     """
@@ -98,3 +108,68 @@ def load_audio_segment(
     if args.configs.dataset_conf.dataset.use_dB_normalization:
         audio_segment.normalize(target_db=args.configs.dataset_conf.dataset.target_dB)
     return audio_segment
+
+
+def show_melspec_gui(audio_array: np.ndarray):
+    """
+    可视化音频的梅尔谱（用于调试或展示）。
+    参数：
+      - audio_array: 一维 numpy 数组，已采样到 SAMPLE_RATE
+    行为：
+      - 使用 librosa 计算 mel spectrogram 并显示图像（matplotlib）。
+    注意：
+      - 在无显示环境下调用会报错，可通过 is_show 控制是否展示。
+    """
+    import matplotlib.pyplot as plt
+
+    S = librosa.feature.melspectrogram(
+        y=audio_array, sr=SAMPLE_RATE, n_mels=128, fmax=SAMPLE_RATE >> 1
+    )
+    S_dB = librosa.power_to_db(S, ref=np.max)
+    plt.figure().set_figwidth(12)
+    librosa.display.specshow(
+        S_dB, x_axis="time", y_axis="mel", sr=SAMPLE_RATE, fmax=SAMPLE_RATE >> 1
+    )
+    plt.colorbar()
+    plt.show()
+
+
+def show_melspec_to_bytes(audio_data) -> bytes:
+    """
+    可视化音频的梅尔谱（用于调试或展示）。
+    参数：
+      - audio_data: 音频数据
+    行为：
+      - 使用 librosa 计算 mel spectrogram 并保存为 webp 格式。
+    返回：
+      - 一个字节数组，包含 mel spectrogram 的图像数据。
+    """
+    audio_segment = load_audio_segment(audio_data)
+    wav = audio_segment.samples.astype(np.float32) / 32768.0
+
+    S = librosa.feature.melspectrogram(
+        y=wav,
+        sr=SAMPLE_RATE,
+        n_mels=128,
+        fmax=SAMPLE_RATE >> 1,
+    )
+    S_dB = librosa.power_to_db(S, ref=np.max)
+
+    fig, ax = plt.subplots(figsize=(12, 4))
+    img = librosa.display.specshow(
+        S_dB,
+        sr=SAMPLE_RATE,
+        x_axis="time",
+        y_axis="mel",
+        fmax=SAMPLE_RATE >> 1,
+        ax=ax,
+    )
+    cbar = fig.colorbar(img, ax=ax, format="%+2.0f dB")
+    ax.set(title="梅尔时频图")
+
+    buf = io.BytesIO()
+    plt.tight_layout()
+    fig.savefig(buf, format="webp", dpi=150)
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()

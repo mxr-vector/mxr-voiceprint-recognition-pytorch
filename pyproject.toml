@@ -12,6 +12,7 @@ dependencies = [
     "matplotlib>=3.10.8",
     "numpy>=2.3.5",
     "onnxruntime>=1.23.2",
+    "opencv-python>=4.11.0.86",
     "phonemizer>=3.3.0",
     "pydub>=0.25.1",
     "pypinyin>=0.55.0",

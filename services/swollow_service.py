@@ -4,6 +4,7 @@ import argparse
 from mvector.swallow_predictor import SwallowPredictor
 from yeaudio.audio import AudioSegment
 
+
 class __SwallowPredictorService:
     """
     吞音检测服务
@@ -39,24 +40,21 @@ class __SwallowPredictorService:
             kwargs["phoneme_model_path"] = self.args.ctc_phoneme_model_path
         return SwallowPredictor(**kwargs)
 
-    def analyze(
+    async def analyze(
         self,
         lang: str,
         reference_text: str,
         audio_segment: AudioSegment,
-        is_show_mel=False,
     ) -> dict:
         """
         :param wav_data: 上传的文件
         :param reference_text: 参考文本
-        :param is_show_mel: 是否显示mel谱
         :return: 分析结果
         :rtype: dict
         """
         res = self.__get_swallow_predictor(lang).analyze(
             reference_text=reference_text,
             audio_segment=audio_segment,
-            is_show_mel=is_show_mel,
         )
         return res
 

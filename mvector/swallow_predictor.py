@@ -33,7 +33,7 @@ PHONEME_LANGUAGE_DICT = {
 
 
 # 采样率：所有音频在处理前会被重采样到该采样率（Hz）
-SAMPLE_RATE = 16000
+SAMPLE_RATE = 16_000
 
 # 每帧时长（毫秒），决定特征帧的 hop 长度和 CTC 帧率映射
 FRAME_MS = 20.0
@@ -351,7 +351,7 @@ class SwallowPredictor:
 
     # ---------- 分析入口 ----------
     def analyze(
-        self, audio_segment: AudioSegment, reference_text: str, is_show_mel=False
+        self, audio_segment: AudioSegment, reference_text: str
     ) -> dict:
         """
         主分析入口：对给定音频执行完整流程并返回结构化结果。
@@ -369,7 +369,6 @@ class SwallowPredictor:
         """
         audio_segment = load_audio_segment(audio_segment, SAMPLE_RATE)
         wav, logits = self.forward(audio_segment)
-        show_melspec(wav) if is_show_mel else None
         segments = self.ctc_segments(logits)
 
         hop_length = int(FRAME_MS / 1000 * SAMPLE_RATE)
@@ -616,31 +615,6 @@ def text2phoneme_or_token(
     if len(ids) == 0:
         ids = [BLANK_ID]
     return torch.tensor(ids, dtype=torch.long).unsqueeze(0)  # shape (1, L)
-
-
-def show_melspec(audio_array: np.ndarray):
-    """
-    可视化音频的梅尔谱（用于调试或展示）。
-    参数：
-      - audio_array: 一维 numpy 数组，已采样到 SAMPLE_RATE
-    行为：
-      - 使用 librosa 计算 mel spectrogram 并显示图像（matplotlib）。
-    注意：
-      - 在无显示环境下调用会报错，可通过 is_show 控制是否展示。
-    """
-    import matplotlib.pyplot as plt
-
-    S = librosa.feature.melspectrogram(
-        y=audio_array, sr=SAMPLE_RATE, n_mels=128, fmax=SAMPLE_RATE >> 1
-    )
-    S_dB = librosa.power_to_db(S, ref=np.max)
-    plt.figure().set_figwidth(12)
-    librosa.display.specshow(
-        S_dB, x_axis="time", y_axis="mel", sr=SAMPLE_RATE, fmax=SAMPLE_RATE >> 1
-    )
-    plt.colorbar()
-    plt.show()
-
 
 # ============================================================
 # 示例运行
