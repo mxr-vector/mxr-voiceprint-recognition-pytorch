@@ -6,16 +6,36 @@ LABEL maintainer="782353676@qq.com" \
     nickname="YuanJie"
 
 # 写入阿里云 Debian 12 源（deb822 格式）
-RUN printf "Types: deb\n\
-    URIs: http://mirrors.aliyun.com/debian\n\
-    Suites: bookworm bookworm-updates bookworm-security\n\
-    Components: main contrib non-free non-free-firmware\n\
-    Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg\n" \
-    > /etc/apt/sources.list.d/debian.sources
+RUN cat > /etc/apt/sources.list.d/debian.sources <<'EOF'
+Types: deb
+URIs: http://mirrors.aliyun.com/debian
+Suites: bookworm bookworm-updates
+Components: main contrib non-free non-free-firmware
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+Types: deb
+URIs: http://mirrors.aliyun.com/debian-security
+Suites: bookworm-security
+Components: main contrib non-free non-free-firmware
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+EOF
+
+# 系统依赖
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl \
+    procps \
+    espeak-ng \
+    ca-certificates && \
+    ln -s /usr/bin/espeak-ng /usr/bin/espeak && \
+    rm -rf /var/lib/apt/lists/*
 
 # 安装 uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    /root/.local/bin/uv --version
 ENV PATH="/root/.local/bin:${PATH}"
+
 
 # 设置工作目录
 WORKDIR /workspace

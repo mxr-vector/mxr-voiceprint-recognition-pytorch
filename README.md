@@ -1,6 +1,8 @@
 简体中文 | [English](./README_en.md)
 
-基于 [夜雨飘零](https://github.com/yeyupiaoling/VoiceprintRecognition-Pytorch) 项目，新增 Web 端声纹对比、声纹识别、说话人日志。
+基于 [夜雨飘零](https://github.com/yeyupiaoling/VoiceprintRecognition-Pytorch) 项目，
+1.新增 Web 端声纹对比、声纹识别、说话人日志。
+2.新增基于声学特征和CTC强制对齐检测的吞音的音频成分识别。
 
 # 基于 Pytorch 实现的声纹识别系统
 
@@ -23,10 +25,10 @@
 
 使用环境：
 
-- Anaconda 3
+- uv
 - Python 3.11
-- Pytorch 2.4.0
-- Windows 11 or Ubuntu 22.04
+- Pytorch 2.9.0
+- Windows 11 or Ubuntu 22.04/24.04
 
 # 在线试用
 

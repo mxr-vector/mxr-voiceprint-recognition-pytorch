@@ -16,10 +16,10 @@ This branch is version 1.1, if you want to use the previous version 1.0 please [
 
 Environment：
 
-- Anaconda 3
+- uv
 - Python 3.11
-- Pytorch 2.4.0
-- Windows 11 or Ubuntu 22.04
+- Pytorch 2.9.0
+- Windows 11 or Ubuntu 22.04/24 .04
 
 # Project Features
 
