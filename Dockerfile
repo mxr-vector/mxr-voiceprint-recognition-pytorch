@@ -33,7 +33,7 @@ RUN apt-get update && \
 # 用 PyPI 国内源安装 uv（稳定）
 ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 # 增加 uv 下载超时（单位秒，建议 300+）
-ENV UV_HTTP_TIMEOUT=300
+ENV UV_HTTP_TIMEOUT=600
 # 用 pip3 安装 uv
 RUN python3 -m pip install --upgrade pip && \
     python3 -m pip install -U uv -i https://pypi.tuna.tsinghua.edu.cn/simple && \
