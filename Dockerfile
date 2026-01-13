@@ -1,9 +1,9 @@
 # 使用官方 python 镜像作为基础镜像
 FROM python:3.11-slim AS base
-LABEL maintainer="782353676@qq.com" \
+LABEL maintainer="YuanJie" \
     description="An Acoustic Feature Detection Mirror Construction Project" \
     license="MIT" \
-    nickname="YuanJie"
+    email="wangjh0825@qq.com"
 
 # 写入阿里云 Debian 12 源（deb822 格式）
 RUN cat > /etc/apt/sources.list.d/debian.sources <<'EOF'
@@ -32,6 +32,8 @@ RUN apt-get update && \
 
 # 用 PyPI 国内源安装 uv（稳定）
 ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+# 增加 uv 下载超时（单位秒，建议 300+）
+ENV UV_HTTP_TIMEOUT=300
 # 用 pip3 安装 uv
 RUN python3 -m pip install --upgrade pip && \
     python3 -m pip install -U uv -i https://pypi.tuna.tsinghua.edu.cn/simple && \
