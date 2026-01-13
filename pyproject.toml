@@ -89,11 +89,11 @@ url = "https://mirrors.huaweicloud.com/repository/pypi/simple"
 # PyTorch 官方 CPU wheel
 [[tool.uv.index]]
 name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
+url = "https://mirrors.nju.edu.cn/pytorch/whl/cpu"
 explicit = true
 
 # PyTorch 官方 GPU wheel
 [[tool.uv.index]]
 name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
+url = "https://mirrors.nju.edu.cn/pytorch/whl/cu128"
 explicit = true
