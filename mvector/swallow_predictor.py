@@ -406,7 +406,7 @@ class SwallowPredictor:
         ]
         avg_duration_ms = np.mean(durations) if durations else FRAME_MS * 2
         phoneme_results = []
-
+        # -------- S2声学特征分段得分 ----------
         for pid, start, end, probs_segment in segments:
             if pid == BLANK_ID:
                 continue
@@ -552,6 +552,8 @@ def nonlinear_map(
 
     # 平滑过渡
     smooth_factor = sigmoid(12 * (S2_linear - threshold))  # 越大过渡越陡峭
+    # tanh 判别门控（区分度核心）
+    # gate = 0.5 * (1 + np.tanh(k * (S2_linear - threshold)))
     S2_nonlinear = low_map * (1 - smooth_factor) + high_map * smooth_factor
 
     # 限制在 [0,1]
