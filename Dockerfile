@@ -5,18 +5,16 @@ LABEL maintainer="782353676@qq.com" \
     license="MIT" \
     nickname="YuanJie"
 
-# 安装 uv, curl 和 procps（提供 ps/pgrep） 
-RUN apt-get update && \
-    apt-get install -y curl procps espeak-ng  apt-utils gnupg && \
-    # 给 espeak-ng 创建别名 espeak  音素包phonemizer要用
-    ln -s /usr/bin/espeak-ng /usr/bin/espeak && \
-    # 安装 uv
-    curl -LsSf https://astral.sh/uv/install.sh | sh && \
-    # 清理缓存
-    rm -rf /var/lib/apt/lists/*
+# 写入阿里云 Debian 12 源（deb822 格式）
+RUN printf "Types: deb\n\
+    URIs: http://mirrors.aliyun.com/debian\n\
+    Suites: bookworm bookworm-updates bookworm-security\n\
+    Components: main contrib non-free non-free-firmware\n\
+    Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg\n" \
+    > /etc/apt/sources.list.d/debian.sources
 
-
-# 将 uv 放到 PATH
+# 安装 uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:${PATH}"
 
 # 设置工作目录
