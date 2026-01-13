@@ -30,11 +30,13 @@ RUN apt-get update && \
     ln -s /usr/bin/espeak-ng /usr/bin/espeak && \
     rm -rf /var/lib/apt/lists/*
 
-# 安装 uv
+# 用 PyPI 国内源安装 uv（稳定）
 ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
-    /root/.local/bin/uv --version
-ENV PATH="/root/.local/bin:${PATH}"
+# 用 pip3 安装 uv
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip install -U uv -i https://pypi.tuna.tsinghua.edu.cn/simple && \
+    uv --version
+# ENV PATH="/root/.local/bin:${PATH}"
 
 
 # 设置工作目录
