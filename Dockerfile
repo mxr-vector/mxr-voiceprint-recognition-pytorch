@@ -50,11 +50,11 @@ COPY pyproject.toml .python-version ./
 # 使用 uv 安装虚拟环境和依赖
 RUN uv sync --extra cu128
 
-# 给 run.sh 可执行权限
-RUN chmod +x run.sh && mkdir -p logs
-
 # 再拷贝项目代码
 COPY . .
+
+# 给 run.sh 可执行权限
+RUN chmod +x run.sh && mkdir -p logs
 
 # uv 会创建 .venv，这里将其添加到 PATH
 ENV PATH="/workspace/.venv/bin:${PATH}"
