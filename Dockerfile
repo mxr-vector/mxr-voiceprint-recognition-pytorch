@@ -7,7 +7,7 @@ LABEL maintainer="782353676@qq.com" \
 
 # 安装 uv, curl 和 procps（提供 ps/pgrep） 
 RUN apt-get update && \
-    apt-get install -y curl procps espeak-ng && \
+    apt-get install -y curl procps espeak-ng  apt-utils gnupg && \
     # 给 espeak-ng 创建别名 espeak  音素包phonemizer要用
     ln -s /usr/bin/espeak-ng /usr/bin/espeak && \
     # 安装 uv
