@@ -40,6 +40,11 @@ RUN python3 -m pip install --upgrade pip && \
     uv --version
 # ENV PATH="/root/.local/bin:${PATH}"
 
+# Hugging Face 国内配置
+# 模型缓存目录
+ENV HF_ENDPOINT=https://hf-mirrors.com
+ENV HF_HOME=/workspace/models/hf
+ENV HF_DATASETS_CACHE=/workspace/models/hf/datasets
 
 # 设置工作目录
 WORKDIR /workspace

@@ -28,7 +28,7 @@ def __build_parser_args() -> argparse.ArgumentParser:
     add_arg(
         "speaker_embedding_model_path",
         str,
-        "models/speaker/CAMPPlus_Fbank/best_model/",
+        "models/CAMPPlus_Fbank/best_model/",
         "说话人分离模型文件路径",
     )
     add_arg("search_audio_db", bool, True, help="是否在音频库中搜索对应的说话人")
