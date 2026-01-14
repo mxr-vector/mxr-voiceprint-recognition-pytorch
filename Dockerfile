@@ -47,7 +47,8 @@ ENV PATH="/root/.local/bin:${PATH}"
 ENV HF_ENDPOINT=https://hf-mirrors.com
 ENV HF_HOME=/workspace/models/hf
 ENV HF_DATASETS_CACHE=/workspace/models/hf/datasets
-
+# ENV TRANSFORMERS_OFFLINE=1
+# ENV HF_DATASETS_OFFLINE=1
 # 设置工作目录
 WORKDIR /workspace
 
