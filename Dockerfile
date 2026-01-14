@@ -28,7 +28,8 @@ RUN apt-get update && \
     espeak-ng \
     ca-certificates && \
     ln -s /usr/bin/espeak-ng /usr/bin/espeak && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /workspace/models/hf/datasets /workspace/logs
 
 # 用 PyPI 国内源安装 uv（稳定）
 ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
@@ -36,9 +37,10 @@ ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ENV UV_HTTP_TIMEOUT=600
 # 用 pip3 安装 uv
 RUN python3 -m pip install --upgrade pip && \
-    python3 -m pip install -U uv -i https://pypi.tuna.tsinghua.edu.cn/simple && \
+    python3 -m pip install -U uv -i ${UV_INDEX_URL} && \
     uv --version
-# ENV PATH="/root/.local/bin:${PATH}"
+
+ENV PATH="/root/.local/bin:${PATH}"
 
 # Hugging Face 国内配置
 # 模型缓存目录
@@ -52,8 +54,8 @@ WORKDIR /workspace
 # 拷贝依赖文件（先拷贝依赖有利于 Docker 层缓存）
 COPY pyproject.toml .python-version ./
 
-# 使用 uv 安装虚拟环境和依赖
-RUN uv sync --extra cu128
+# 同步依赖，--active 强制使用当前 venv，避免重建
+RUN uv sync --python 3.11 --extra cu128 --active
 
 # 再拷贝项目代码
 COPY . .
