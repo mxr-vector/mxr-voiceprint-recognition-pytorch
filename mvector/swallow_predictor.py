@@ -162,8 +162,12 @@ class SwallowPredictor:
         self.risk_threshold = risk_threshold
         self.severe_threshold = severe_threshold
         # 加载 processor 与模型
-        self.processor = Wav2Vec2Processor.from_pretrained(model_path)
-        self.model = Wav2Vec2ForCTC.from_pretrained(model_path).to(self.device)
+        self.processor = Wav2Vec2Processor.from_pretrained(
+            model_path, local_files_only=True
+        )
+        self.model = Wav2Vec2ForCTC.from_pretrained(
+            model_path, local_files_only=True
+        ).to(self.device)
         self.model.eval()
         self.language = language
         # TODO 后续扩展s2方案无参考文本的 admm惩罚项优化
