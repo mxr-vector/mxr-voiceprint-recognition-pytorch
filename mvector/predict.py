@@ -73,7 +73,7 @@ class MVectorPredictor:
                     convert_string_based_on_type(before_value, value),
                 )
         # 打印配置信息
-        print_arguments(configs=self.configs)
+        # print_arguments(configs=self.configs)
         self._audio_featurizer = AudioFeaturizer(
             feature_method=self.configs.preprocess_conf.feature_method,
             use_hf_model=self.configs.preprocess_conf.get("use_hf_model", False),
