@@ -111,8 +111,8 @@ async def preview(
 
 
 # 吞音检测接口
-@router.post("/swollow")
-async def swollow(
+@router.post("/swallow")
+async def swallow(
     lang: str = Form("zh-cn", description="语种"),
     reference_text: str = Form(None, description="参考文本"),
     audio_data: UploadFile = File(..., description="音频文件"),
