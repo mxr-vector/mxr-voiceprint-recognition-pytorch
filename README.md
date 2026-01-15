@@ -619,10 +619,15 @@ app/
 
 # 启动
 # uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+# 支持cpu
+uv sync --extra cpu
+# 支持cuda
+uv sync --extra cu128
+
 uv run main.py
 ```
 
-注意，需要注释如下代码中的断言，
+注意，(windows系统)需要注释如下代码中的断言，
 .venv\Lib\site-packages\yeaudio\audio.py
 否则无法识别基于 FastAPI 的 SpooledTemporaryFile 类型音频文件。
 
@@ -652,15 +657,9 @@ uv run main.py
 ```shell
 # 你需要检查dockerfile的torch配置和你的设备cuda版本一致
 vim Dockerfile
-==============
-# 支持cpu
-RUN uv sync --extra cpu
-# 支持cuda
-RUN uv sync --extra cu128
-==============
-# 构建镜像
-docker build --no-cache -t voiceprint-pytorch:Dockerfile .
 
+# 构建镜像
+docker build -t voiceprint-pytorch:Dockerfile .
 
 # 启动临时容器拷贝文件到本地
 docker run -it --name voiceprint voiceprint-pytorch:Dockerfile /bin/bash

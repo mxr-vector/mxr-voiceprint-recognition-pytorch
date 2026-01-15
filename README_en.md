@@ -443,7 +443,7 @@ app/
 uv run main.py
 ```
 
-attention，Please annotate the assertions in the following code:
+attention，(windows system)Please annotate the assertions in the following code:
 .venv\Lib\site-packages\yeaudio\audio.py
 Otherwise, audio files of the SpooledTemporaryFile type based on FastAPI cannot be recognized.
 
@@ -471,20 +471,13 @@ Parameter updates should be made in `core/config.py`.
 ```bash
 # You need to check that the torch configuration in the Dockerfile is consistent with the CUDA version of your device.
 vim Dockerfile
-======Dockerfile start========
-RUN uv pip install \
-    torch==2.9.0 \
-    torchvision==0.24.0 \
-    torchaudio==2.9.0 \
-    --index-url https://download.pytorch.org/whl/cu128
-=======end=======
 
 # build images
-docker build -t voiceprint-pytorch:1.0 .
+docker build -t voiceprint-pytorch:Dockerfile .
 
 
 # Start the temporary container to copy files to the local machine
-docker run -it --name voiceprint voiceprint-pytorch:1.0 /bin/bash
+docker run -it --name voiceprint voiceprint-pytorch:Dockerfile /bin/bash
 
 # Open a new terminal to copy the data
 docker cp voiceprint:/workspace $PWD
@@ -499,7 +492,7 @@ mv <model-path> ./workspace/models
 docker run -it -p 8000:8000 --shm-size=8g \
 -v $PWD/workspace:/workspace \
 --restart=always \
---name voiceprint voiceprint-pytorch:1.0 /bin/bash
+--name voiceprint voiceprint-pytorch:Dockerfile /bin/bash
 
 bash run.sh start
 
