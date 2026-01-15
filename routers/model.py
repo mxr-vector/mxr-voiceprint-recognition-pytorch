@@ -2,7 +2,7 @@ from typing import Union
 from fastapi import APIRouter, UploadFile, File, Form, Body, Query, Path
 from fastapi.responses import FileResponse, StreamingResponse
 import io
-from services import singleVoiceprintService, singleWallowService
+from services import singleVoiceprintService, singleSwallowService
 from core.response import R
 from mvector.utils.audio_utils import load_audio_segment, show_melspec_to_bytes
 
@@ -118,7 +118,7 @@ async def swallow(
     audio_data: UploadFile = File(..., description="音频文件"),
 ) -> Union[R]:
     audio_segment = load_audio_segment(audio_data)
-    result = await singleWallowService.analyze(
+    result = await singleSwallowService.analyze(
         lang=lang,
         audio_segment=audio_segment,
         reference_text=reference_text,

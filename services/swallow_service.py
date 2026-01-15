@@ -60,4 +60,4 @@ class __SwallowPredictorService:
 
 
 # ---- 单例 ----
-singleWallowService = __SwallowPredictorService()
+singleSwallowService = __SwallowPredictorService()
