@@ -629,7 +629,7 @@ uv run main.py
 
 注意，(windows系统)需要注释如下代码中的断言，
 .venv\Lib\site-packages\yeaudio\audio.py
-否则无法识别基于 FastAPI 的 SpooledTemporaryFile 类型音频文件。
+否则无法识别基于 FastAPI 的 SpooledTemporaryFile 类型音频文件。(该包在window下的bug)
 
 ```python
     def from_file(cls, file):
@@ -661,6 +661,7 @@ vim Dockerfile
 # 构建镜像
 docker build -t voiceprint-pytorch:Dockerfile .
 
+docker builder prune --filter "until=24h"
 # 启动临时容器拷贝文件到本地
 docker run -it --name voiceprint voiceprint-pytorch:Dockerfile /bin/bash
 
