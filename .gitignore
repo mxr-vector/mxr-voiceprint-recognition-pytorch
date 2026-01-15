@@ -16,3 +16,4 @@ feature_models/
 uv.lock
 .venv/
 logs/
+*.tar

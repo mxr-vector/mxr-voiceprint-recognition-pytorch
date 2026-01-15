@@ -6,3 +6,6 @@ __pycache__
 .gitignore
 logs
 .vscode
+models
+datasets
+*.tar
