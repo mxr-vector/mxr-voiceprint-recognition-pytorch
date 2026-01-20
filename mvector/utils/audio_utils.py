@@ -165,6 +165,11 @@ def show_melspec_to_bytes(audio_data) -> bytes:
         ax=ax,
     )
     cbar = fig.colorbar(img, ax=ax, format="%+2.0f dB")
+
+    # 设置中文字体
+    font_name = __get_chinese_font()
+    matplotlib.rcParams["font.sans-serif"] = [font_name]
+    matplotlib.rcParams["axes.unicode_minus"] = False
     ax.set(title="梅尔时频图")
 
     buf = io.BytesIO()
@@ -173,3 +178,24 @@ def show_melspec_to_bytes(audio_data) -> bytes:
     plt.close(fig)
     buf.seek(0)
     return buf.read()
+
+
+def __get_chinese_font():
+    """
+    自动选择可用中文字体，兼容 Windows 和 Linux
+    """
+    # 中文字体优先列表
+    preferred_fonts = [
+        "SimHei",  # Windows 黑体
+        "Microsoft YaHei",  # Windows 微软雅黑
+        "Noto Sans CJK SC",  # Linux / Mac 通用思源黑体
+        "WenQuanYi Micro Hei",  # Linux 常用字体
+    ]
+
+    available_fonts = [f.name for f in matplotlib.font_manager.fontManager.ttflist]
+    for font in preferred_fonts:
+        if font in available_fonts:
+            return font
+
+    # 如果没有找到中文字体，返回默认字体
+    return matplotlib.rcParams["font.sans-serif"][0]

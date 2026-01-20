@@ -47,12 +47,20 @@ cu128 = [
   "torchaudio==2.9.0+cu128",
   "transformers[torch]>=4.57.3",
 ]
+# 兼容5080+
+cu130 = [
+  "torch==2.9.0+cu130",
+  "torchvision==0.24.0+cu130",
+  "torchaudio==2.9.0+cu130",
+  "transformers[torch]>=4.57.3",
+]
 
 [tool.uv]
 conflicts = [
   [
     { extra = "cpu" },
     { extra = "cu128" },
+    { extra = "cu130" },
   ],
 ]
 
@@ -62,14 +70,17 @@ conflicts = [
 torch = [
   { index = "pytorch-cpu", extra = "cpu" },
   { index = "pytorch-cu128", extra = "cu128" },
+  { index = "pytorch-cu130", extra = "cu130" },
 ]
 torchvision = [
   { index = "pytorch-cpu", extra = "cpu" },
   { index = "pytorch-cu128", extra = "cu128" },
+  { index = "pytorch-cu130", extra = "cu130" },
 ]
 torchaudio = [
   { index = "pytorch-cpu", extra = "cpu" },
   { index = "pytorch-cu128", extra = "cu128" },
+  { index = "pytorch-cu130", extra = "cu130" },
 ]
 
 # 官方 PyPI 镜像（默认国内源可选）
@@ -96,4 +107,8 @@ explicit = true
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://mirrors.nju.edu.cn/pytorch/whl/cu128"
+explicit = true
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://mirrors.nju.edu.cn/pytorch/whl/cu130"
 explicit = true
