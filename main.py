@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from core.config import args
 
+
 def create_app() -> FastAPI:
     """
     create_app 的 Docstring
@@ -53,6 +54,6 @@ if __name__ == "__main__":
     # uvicorn main:app --host 127.0.0.1 --port 8000 --reload
     cpu_count = os.cpu_count() or 1
     workers = cpu_count // 8 + 1
-    uvicorn.run("main:app", host=args.host, port=args.port, reload=True, workers=1)
+    uvicorn.run("main:app", host=args.host, port=args.port, reload=False, workers=1)
     # uvicorn.run("main:app", host=args.host, port=args.port, reload=False, workers=workers)
     logger.info("声纹识别 Web服务器启动....")

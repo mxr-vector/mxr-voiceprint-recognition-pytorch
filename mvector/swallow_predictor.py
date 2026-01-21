@@ -244,7 +244,7 @@ class SwallowPredictor:
         probs_segment: np.ndarray,
         wav: np.ndarray,
         durations: list,
-    ):
+    ) -> tuple:
         """
         计算改进的 S2（分段吞音风险评分），结合时长、后验、空白率、能量、谱熵、发声率、ZCR、谱质心等特征。
         参数：
@@ -364,17 +364,23 @@ class SwallowPredictor:
 
         # ---------- 指标详情字典 ----------
         metrics = {
-            "duration": round(W_DURATION * D_short, 2),  # 时长惩罚：音素过短的程度
-            "blank": round(W_BLANK * blank_ratio, 2),  # 空白惩罚：静音片段被误判为音素
-            "posterior": round(W_POSTERIOR * posterior_norm, 2),  # 后验惩罚：模型对音素的置信度不足
-            "energy": round(W_ENERGY * energy_norm, 2),  # 能量惩罚：音素能量过低
-            "entropy": round(W_ENTROPY * H_norm, 2),  # 熵惩罚：频谱不集中，发音模糊
-            "voicing": round(W_VOICING * voicing_norm, 2),  # 发声惩罚：有声部分占比过低
-            "zcr": round(W_ZCR * zcr_norm, 2),  # 过零率惩罚：频率变化过快
-            "spectral": round(W_SPECTRAL * spectral_norm, 2),  # 谱质心惩罚：频谱重心位置异常
-            "bandwidth": round(W_BANDWIDTH * bandwidth_norm, 2),  # 谱带宽惩罚：频谱带宽过窄
-            "linear_score": round(S2_linear, 2),  # 线性加权总分（映射前）
-            "final_score": round(S2, 2),  # 最终S2分数（非线性映射后，0-1范围）
+            "duration": float(W_DURATION * D_short),  # 时长惩罚：音素过短的程度
+            "blank": float(W_BLANK * blank_ratio),  # 空白惩罚：静音片段被误判为音素
+            "posterior": float(
+                W_POSTERIOR * posterior_norm
+            ),  # 后验惩罚：模型对音素的置信度不足
+            "energy": float(W_ENERGY * energy_norm),  # 能量惩罚：音素能量过低
+            "entropy": float(W_ENTROPY * H_norm),  # 熵惩罚：频谱不集中，发音模糊
+            "voicing": float(W_VOICING * voicing_norm),  # 发声惩罚：有声部分占比过低
+            "zcr": float(W_ZCR * zcr_norm),  # 过零率惩罚：频率变化过快
+            "spectral": float(
+                W_SPECTRAL * spectral_norm
+            ),  # 谱质心惩罚：频谱重心位置异常
+            "bandwidth": float(
+                W_BANDWIDTH * bandwidth_norm
+            ),  # 谱带宽惩罚：频谱带宽过窄
+            "linear_score": float(S2_linear),  # 线性加权总分（映射前）
+            "final_score": float(S2),  # 最终S2分数（非线性映射后，0-1范围）
         }
 
         # ---------- 原因列表 ----------
