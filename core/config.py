@@ -42,7 +42,7 @@ def __build_parser_args() -> argparse.ArgumentParser:
     add_arg(
         "ctc_token_model_path",
         str,
-        "jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn",
+        "models/hf/wav2vec2-large-xlsr-53-chinese-zh-cn",
         "语音表征CTC 字符检测模型文件路径",
     )
     """
@@ -54,7 +54,7 @@ def __build_parser_args() -> argparse.ArgumentParser:
     add_arg(
         "ctc_phoneme_model_path",
         str,
-        "facebook/wav2vec2-large-960h-lv60-self",
+        "models/hf/wav2vec2-large-960h-lv60-self",
         "语音表征CTC 音素检测模型文件路径",
     )
     add_arg("risk_threshold", float, 0.5, " 高风险阈值")

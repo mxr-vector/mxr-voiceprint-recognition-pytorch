@@ -36,7 +36,7 @@ PHONEME_LANGUAGE_DICT = {
 SAMPLE_RATE = 16_000
 
 # 每帧时长（毫秒），决定特征帧的 hop 长度和 CTC 帧率映射
-FRAME_MS = 20.0
+FRAME_MS = 10.0
 
 # CTC 模型中的 blank token ID（通常为 0），用于分割静音/填充
 BLANK_ID = 0
@@ -55,6 +55,7 @@ entropy: 惩罚音素频谱不集中（模糊、不确定）
 voicing: 惩罚低发声率音素
 zcr: 惩罚频率变化过快的音素
 spectral: 惩罚频谱偏高或偏低的音素
+bandwodth: 谱带宽权重，介于ZCR和SPECTRAL之间
 """
 # 关键特征加权
 W_DURATION = 4.0
@@ -66,7 +67,7 @@ W_ENTROPY = 1.0
 W_VOICING = 1.0
 W_ZCR = 0.2
 W_SPECTRAL = 0.5
-
+W_BANDWIDTH = 0.3
 
 # ------ 阈值（用于判断各个特征是否触发“原因”提示） ------
 # 时长短的判定阈值（归一化后判断）
@@ -85,6 +86,8 @@ THRESH_VOICING = 0.3
 THRESH_PITCH_DROP = 0.5
 # 过零率阈值
 THRESH_ZCR = 0.4
+# 谱带宽阈值（高于认为带宽过窄）
+THRESH_BANDWIDTH = 0.65
 
 # ---------- 权重归一化（内部逻辑保持不变，但添加注释） ----------
 # 将上面定义的权重按总和归一化，确保它们之和为 1，避免尺度问题
@@ -98,6 +101,7 @@ total = sum(
         W_VOICING,
         W_ZCR,
         W_SPECTRAL,
+        W_BANDWIDTH,
     ]
 )
 W_DURATION /= total
@@ -108,6 +112,7 @@ W_ENTROPY /= total
 W_VOICING /= total
 W_ZCR /= total
 W_SPECTRAL /= total
+W_BANDWIDTH /= total
 
 
 # ===============================
@@ -237,139 +242,21 @@ class SwallowPredictor:
         start: float,
         end: float,
         probs_segment: np.ndarray,
-        rms: np.ndarray,
-        rms_mean: float,
-        avg_duration_ms: float,
-        zcr=None,
-        centroid=None,
-        bandwidth=None,
-        f0=None,
+        wav: np.ndarray,
+        durations: list,
     ):
         """
         计算改进的 S2（分段吞音风险评分），结合时长、后验、空白率、能量、谱熵、发声率、ZCR、谱质心等特征。
         参数：
-          - pid, start, end: 段信息（token id, 帧起, 帧止）
-          - probs_segment: 段内每帧模型概率分布（numpy array，shape (L, C)）
-          - rms: 每帧能量（numpy array）
-          - rms_mean: 全句平均能量
-          - avg_duration_ms: 非空白音素平均时长（毫秒）
-          - zcr, centroid, bandwidth: 对应帧级谱/时域特征（可选）
-          - f0: 基频序列（帧级，带 NaN 表示非音高帧）
+        - pid, start, end: 段信息（token id, 帧起, 帧止）
+        - probs_segment: 段内每帧模型概率分布（numpy array，shape (L, C)）
+        - wav: 音频数据
+        - durations: 非空白音素时长列表
         返回：
-          - S2: 归一化后的分数（0-1，值越大表示越可能吞音）
-          - reasons: 原因列表（字符串），对应触发的特征异常项
-        设计说明：
-          - 先做线性加权得到中间量，再通过分段非线性映射（exponential）放大高风险区域。
-          - 各归一化分量使用 clamp 保证稳定性。
+        - S2: 归一化后的分数（0-1，值越大表示越可能吞音）
+        - reasons: 原因列表（字符串），对应触发的特征异常项
+        - metrics: 各项指标的字典，包含归一化值和原始值
         """
-        duration_ms = (end - start) * FRAME_MS
-        posterior = (
-            float(probs_segment[:, pid].mean()) if pid < probs_segment.shape[1] else 0.0
-        )
-        blank_ratio = float((probs_segment[:, BLANK_ID] > 0.6).mean())
-        energy = (
-            float(rms[start:end].mean())
-            if start < len(rms) and end <= len(rms)
-            else 0.0
-        )
-
-        # 归一化特征
-        short_threshold = max(FRAME_MS, avg_duration_ms * 0.5)
-        D_short = clamp((short_threshold - duration_ms) / short_threshold)
-        posterior_norm = 1 - posterior
-        energy_norm = clamp((0.95 * rms_mean - energy) / (0.8 * rms_mean + 1e-8))
-        try:
-            p = np.clip(probs_segment, 1e-12, 1.0)
-            entropy_frames = -np.sum(p * np.log(p), axis=1)
-            posterior_entropy = float(np.mean(entropy_frames))
-            max_ent = np.log(probs_segment.shape[1])
-            H_norm = clamp(posterior_entropy / (max_ent + 1e-8))
-        except Exception:
-            H_norm = 0.0
-
-        # 发声率和基频
-        voicing_ratio, pitch_drop = 0.0, 0.0
-        if f0 is not None and start < len(f0):
-            seg_f0 = f0[start:end]
-            voiced = np.isfinite(seg_f0) & (seg_f0 > 0)
-            voicing_ratio = float(np.mean(voiced)) if len(seg_f0) > 0 else 0.0
-            if voicing_ratio > 0:
-                f0_vals = seg_f0[voiced]
-                if len(f0_vals) > 1:
-                    pitch_drop = clamp(
-                        max(
-                            0.0,
-                            (np.max(f0_vals) - np.min(f0_vals))
-                            / (np.max(f0_vals) + 1e-8),
-                        )
-                    )
-        voicing_norm = 1 - voicing_ratio
-
-        # ZCR & 谱质心
-        zcr_mean = float(np.mean(zcr[start:end])) if zcr is not None else 0.0
-        zcr_norm = clamp(zcr_mean)
-        centroid_mean = (
-            float(np.mean(centroid[start:end])) if centroid is not None else 0.0
-        )
-        spectral_norm = clamp(centroid_mean / (SAMPLE_RATE / 2))
-
-        # ---------- 分段非线性组合 ----------
-        S2_linear = (
-            W_DURATION * D_short
-            + W_POSTERIOR * posterior_norm
-            + W_BLANK * blank_ratio
-            + W_ENERGY * energy_norm
-            + W_ENTROPY * H_norm
-            + W_VOICING * voicing_norm
-            + W_ZCR * zcr_norm
-            + W_SPECTRAL * spectral_norm
-        )
-
-        # 分段非线性映射
-        S2 = nonlinear_map(S2_linear)
-
-        # ---------- 原因列表 ----------
-        reasons = []
-        if D_short > THRESH_DURATION:
-            reasons.append("音素过短")
-        if posterior < THRESH_POSTERIOR:
-            reasons.append("模型后验率低")
-        if blank_ratio > THRESH_BLANK:
-            reasons.append("空白静音过长")
-        if energy_norm > THRESH_ENERGY:
-            reasons.append("能量低")
-        if H_norm > THRESH_ENTROPY:
-            reasons.append("模糊发音")
-        if voicing_norm > THRESH_VOICING:
-            reasons.append("低发声率")
-        if pitch_drop > THRESH_PITCH_DROP:
-            reasons.append("基频剧烈变化")
-        if zcr_norm > THRESH_ZCR:
-            reasons.append("过零率偏高(频率成分高)")
-
-        return S2, reasons
-
-    # ---------- 分析入口 ----------
-    def analyze(
-        self, audio_segment: AudioSegment, reference_text: str
-    ) -> dict:
-        """
-        主分析入口：对给定音频执行完整流程并返回结构化结果。
-        参数：
-          - wav_data: 音频文件路径
-          - reference_text: 可选的参考文本（中文），用于 S1 对齐与额外压缩/删除判定
-          - is_show: 是否显示梅尔谱（调试用）
-        返回：
-          - dict，包含：
-            - final_score: 句级分数（0-100）
-            - sentence_risk_level: 风险分层字符串
-            - phonemes: 音素级结果列表（每项包含 pid, token, pinyin, start, end, S2, S1, final, reasons 等）
-        说明：
-          - 方法内部会计算多种帧级特征：RMS、ZCR、谱质心、谱带宽、基频等，用于 score_s2。
-        """
-        audio_segment = load_audio_segment(audio_segment, SAMPLE_RATE)
-        wav, logits = self.forward(audio_segment)
-        segments = self.ctc_segments(logits)
 
         hop_length = int(FRAME_MS / 1000 * SAMPLE_RATE)
         rms = librosa.feature.rms(
@@ -399,29 +286,152 @@ class SwallowPredictor:
         except Exception:
             f0 = None
 
+        avg_duration_ms = np.mean(durations) if durations else FRAME_MS * 2
+
+        duration_ms = (end - start) * FRAME_MS
+        posterior = (
+            float(probs_segment[:, pid].mean()) if pid < probs_segment.shape[1] else 0.0
+        )
+        blank_ratio = float((probs_segment[:, BLANK_ID] > 0.6).mean())
+        energy = (
+            float(rms[start:end].mean())
+            if start < len(rms) and end <= len(rms)
+            else 0.0
+        )
+
+        # 归一化特征
+        short_threshold = max(FRAME_MS, avg_duration_ms * 0.5)
+        D_short = clamp((short_threshold - duration_ms) / short_threshold)
+        posterior_norm = 1 - posterior
+        energy_norm = clamp((0.95 * rms_mean - energy) / (0.8 * rms_mean + 1e-8))
+        try:
+            p = np.clip(probs_segment, 1e-12, 1.0)
+            entropy_frames = -np.sum(p * np.log(p), axis=1)
+            posterior_entropy = float(np.mean(entropy_frames))
+            max_ent = np.log(probs_segment.shape[1])
+            H_norm = clamp(posterior_entropy / (max_ent + 1e-8))
+        except Exception:
+            H_norm = 0.0
+            posterior_entropy = 0.0
+
+        # 发声率和基频
+        voicing_ratio, pitch_drop = 0.0, 0.0
+        if f0 is not None and start < len(f0):
+            seg_f0 = f0[start:end]
+            voiced = np.isfinite(seg_f0) & (seg_f0 > 0)
+            voicing_ratio = float(np.mean(voiced)) if len(seg_f0) > 0 else 0.0
+            if voicing_ratio > 0:
+                f0_vals = seg_f0[voiced]
+                if len(f0_vals) > 1:
+                    pitch_drop = clamp(
+                        max(
+                            0.0,
+                            (np.max(f0_vals) - np.min(f0_vals))
+                            / (np.max(f0_vals) + 1e-8),
+                        )
+                    )
+        voicing_norm = 1 - voicing_ratio
+
+        # ZCR & 谱质心
+        zcr_mean = float(np.mean(zcr[start:end])) if zcr is not None else 0.0
+        zcr_norm = clamp(zcr_mean)
+        centroid_mean = (
+            float(np.mean(centroid[start:end])) if centroid is not None else 0.0
+        )
+        spectral_norm = clamp(centroid_mean / (SAMPLE_RATE / 2))
+
+        # 谱带宽：带宽过窄可能表示发音不清晰
+        bandwidth_mean = (
+            float(np.mean(bandwidth[start:end])) if bandwidth is not None else 0.0
+        )
+        bandwidth_norm = clamp(1.0 - bandwidth_mean / (SAMPLE_RATE / 2))
+
+        # ---------- 分段非线性组合 ----------
+        S2_linear = (
+            W_DURATION * D_short
+            + W_POSTERIOR * posterior_norm
+            + W_BLANK * blank_ratio
+            + W_ENERGY * energy_norm
+            + W_ENTROPY * H_norm
+            + W_VOICING * voicing_norm
+            + W_ZCR * zcr_norm
+            + W_SPECTRAL * spectral_norm
+            + W_BANDWIDTH * bandwidth_norm
+        )
+
+        # 分段非线性映射
+        S2 = nonlinear_map(S2_linear)
+
+        # ---------- 指标详情字典 ----------
+        metrics = {
+            "duration": round(W_DURATION * D_short, 2),  # 时长惩罚：音素过短的程度
+            "blank": round(W_BLANK * blank_ratio, 2),  # 空白惩罚：静音片段被误判为音素
+            "posterior": round(W_POSTERIOR * posterior_norm, 2),  # 后验惩罚：模型对音素的置信度不足
+            "energy": round(W_ENERGY * energy_norm, 2),  # 能量惩罚：音素能量过低
+            "entropy": round(W_ENTROPY * H_norm, 2),  # 熵惩罚：频谱不集中，发音模糊
+            "voicing": round(W_VOICING * voicing_norm, 2),  # 发声惩罚：有声部分占比过低
+            "zcr": round(W_ZCR * zcr_norm, 2),  # 过零率惩罚：频率变化过快
+            "spectral": round(W_SPECTRAL * spectral_norm, 2),  # 谱质心惩罚：频谱重心位置异常
+            "bandwidth": round(W_BANDWIDTH * bandwidth_norm, 2),  # 谱带宽惩罚：频谱带宽过窄
+            "linear_score": round(S2_linear, 2),  # 线性加权总分（映射前）
+            "final_score": round(S2, 2),  # 最终S2分数（非线性映射后，0-1范围）
+        }
+
+        # ---------- 原因列表 ----------
+        reasons = []
+        if D_short > THRESH_DURATION:
+            reasons.append("音素过短")
+        if posterior < THRESH_POSTERIOR:
+            reasons.append("模型后验率低")
+        if blank_ratio > THRESH_BLANK:
+            reasons.append("空白静音过长")
+        if energy_norm > THRESH_ENERGY:
+            reasons.append("能量低")
+        if H_norm > THRESH_ENTROPY:
+            reasons.append("模糊发音")
+        if voicing_norm > THRESH_VOICING:
+            reasons.append("低发声率")
+        if pitch_drop > THRESH_PITCH_DROP:
+            reasons.append("基频剧烈变化")
+        if zcr_norm > THRESH_ZCR:
+            reasons.append("过零率偏高(频率成分高)")
+        if bandwidth_norm > THRESH_BANDWIDTH:
+            reasons.append("谱带宽过窄(发音不清晰)")
+
+        return S2, reasons, metrics
+
+    # ---------- 分析入口 ----------
+    def analyze(self, audio_segment: AudioSegment, reference_text: str) -> dict:
+        """
+        主分析入口：对给定音频执行完整流程并返回结构化结果。
+        参数：
+          - wav_data: 音频文件路径
+          - reference_text: 可选的参考文本（中文），用于 S1 对齐与额外压缩/删除判定
+          - is_show: 是否显示梅尔谱（调试用）
+        返回：
+          - dict，包含：
+            - final_score: 句级分数（0-100）
+            - sentence_risk_level: 风险分层字符串
+            - phonemes: 音素级结果列表（每项包含 pid, token, pinyin, start, end, S2, S1, final, reasons 等）
+        说明：
+          - 方法内部会计算多种帧级特征：RMS、ZCR、谱质心、谱带宽、基频等，用于 score_s2。
+        """
+        audio_segment = load_audio_segment(audio_segment, SAMPLE_RATE)
+        wav, logits = self.forward(audio_segment)
+        segments = self.ctc_segments(logits)
+
         durations = [
             (end - start) * FRAME_MS
             for pid, start, end, _ in segments
             if pid != BLANK_ID
         ]
-        avg_duration_ms = np.mean(durations) if durations else FRAME_MS * 2
         phoneme_results = []
         # -------- S2声学特征分段得分 ----------
         for pid, start, end, probs_segment in segments:
             if pid == BLANK_ID:
                 continue
-            S2, reasons = self.score_s2(
-                pid,
-                start,
-                end,
-                probs_segment,
-                rms,
-                rms_mean,
-                avg_duration_ms,
-                zcr=zcr,
-                centroid=centroid,
-                bandwidth=bandwidth,
-                f0=f0,
+            S2, reasons, metrics = self.score_s2(
+                pid, start, end, probs_segment, wav, durations
             )
             token = self.processor.tokenizer._convert_id_to_token(pid)
             py = token_to_pinyin(token)
@@ -434,6 +444,7 @@ class SwallowPredictor:
                     "end": end * FRAME_MS / 1000,
                     "S2": S2,
                     "S2_percent": S2 * 100,
+                    "metrics": metrics,
                     "reasons": reasons,
                     "penalty_score": S2,
                     "penalty_score_percent": S2 * 100,
@@ -617,6 +628,7 @@ def text2phoneme_or_token(
     if len(ids) == 0:
         ids = [BLANK_ID]
     return torch.tensor(ids, dtype=torch.long).unsqueeze(0)  # shape (1, L)
+
 
 # ============================================================
 # 示例运行
