@@ -659,11 +659,11 @@ uv run main.py
 vim Dockerfile
 
 # 构建镜像
-docker build -t voiceprint-pytorch:Dockerfile .
+docker build -t voiceprint-recogntition-pytorch:Dockerfile .
 
 docker builder prune --filter "until=24h"
 # 启动临时容器拷贝文件到本地
-docker run -it --name voiceprint voiceprint-pytorch:Dockerfile /bin/bash
+docker run -it --name voiceprint voiceprint-recogntition-pytorch:Dockerfile /bin/bash
 
 # 开新终端 拷贝数据
 docker cp voiceprint:/workspace $PWD
@@ -678,7 +678,7 @@ mv <模型地址> ./workspace/models
 docker run -it -p 8000:8000 --shm-size=8g \
 -v $PWD/workspace:/workspace \
 --restart=always \
---name voiceprint voiceprint-pytorch:Dockerfile /bin/bash
+--name voiceprint voiceprint-recogntition-pytorch:Dockerfile /bin/bash
 
 bash run.sh start
 
