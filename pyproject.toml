@@ -26,7 +26,6 @@ dependencies = [
     "soundfile>=0.12.1",
     "torchinfo>=1.7.2",
     "tqdm>=4.59.0",
-    "transformers>=4.57.3",
     "uvicorn[standard]>=0.38.0",
     "visualdl==2.5.3",
     "yeaudio>=0.0.7",
@@ -39,20 +38,17 @@ cpu = [
   "torch==2.9.0+cpu",
   "torchvision==0.24.0+cpu",
   "torchaudio==2.9.0+cpu",
-  "transformers>=4.57.3",
 ]
 cu128 = [
   "torch==2.9.0+cu128",
   "torchvision==0.24.0+cu128",
   "torchaudio==2.9.0+cu128",
-  "transformers[torch]>=4.57.3",
 ]
 # 兼容5080+
 cu130 = [
   "torch==2.9.0+cu130",
   "torchvision==0.24.0+cu130",
   "torchaudio==2.9.0+cu130",
-  "transformers[torch]>=4.57.3",
 ]
 
 [tool.uv]

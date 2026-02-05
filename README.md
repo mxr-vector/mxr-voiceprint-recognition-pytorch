@@ -627,6 +627,15 @@ uv sync --extra cu128
 uv run main.py
 ```
 
+注意：Transformers（以下简称 tsfs）必须通过 pip 方式安装。启动包含 tsfs 依赖的脚本时，tsfs 会触发依赖自检并自动下载匹配版本，但该过程会同时引发 uv 的路径依赖校验。由于遵循“就近依赖优先”原则，系统会优先匹配 tsfs 直接关联的 torch 版本，从而导致 pyproject.toml 中预设的 torch 依赖被覆盖失效。为避免此问题，请务必手动执行下述安装步骤。此外，除 tsfs 外的若干依赖项可能与 tsfs 版本存在耦合关系，因此一并纳入以下安装清单中进行统一管理。
+uv add会触发uv的依赖路径检查
+uv pip install直接安装则不会触发依赖重建
+
+```bash
+# 另外transformers5和4的api变化有些不同，你可以 transformers==4.57.3指定版本
+uv pip install transformers==4.57.3
+```
+
 注意，(windows系统)需要注释如下代码中的断言，
 .venv\Lib\site-packages\yeaudio\audio.py
 否则无法识别基于 FastAPI 的 SpooledTemporaryFile 类型音频文件。(该包在window下的bug)
