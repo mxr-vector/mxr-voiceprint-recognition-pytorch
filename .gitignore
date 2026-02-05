@@ -10,7 +10,6 @@ audio_db/
 output/
 models/
 feature_models/
-paper.md
 # Ignore VSCode settings
 .vscode/
 uv.lock
