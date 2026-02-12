@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 # 改进版二合一吞音检测系统（生产级方案2）
 # 归一化 + 分段非线性 + 可选 ADMM 优化
 # ============================================================
@@ -7,6 +7,7 @@ import torchaudio.functional as F
 import numpy as np
 import librosa
 from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
+from qwen_asr import Qwen3ForcedAligner
 from pypinyin import pinyin, Style
 from mvector.utils.audio_utils import load_audio_segment
 from yeaudio.audio import AudioSegment
@@ -43,6 +44,8 @@ BLANK_ID = 0
 
 # 合并非常短段的阈值（毫秒），小于该时长的段会合并到邻近段
 MERGE_SHORT_MS = 10
+
+QWEN_FORCED_ALIGNER_MODEL = "Qwen/Qwen3-ForcedAligner-0.6B"
 
 # ------- 权重（各特征在最终 S2 评分中的线性权重，随后会归一化） -------
 """
@@ -114,7 +117,6 @@ W_ZCR /= total
 W_SPECTRAL /= total
 W_BANDWIDTH /= total
 
-
 # ===============================
 # 核心检测类
 # ===============================
@@ -136,6 +138,8 @@ class SwallowPredictor:
         language="zh-cn",
         token_model_path="jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn",
         phoneme_model_path="facebook/wav2vec2-large-960h-lv60-self",
+        forced_aligner_model_path=QWEN_FORCED_ALIGNER_MODEL,
+        use_forced_aligner=True,
         risk_threshold=0.5,
         severe_threshold=0.7,
         use_gpu=True,
@@ -161,8 +165,10 @@ class SwallowPredictor:
         # 推理设备，优先 GPU，否则使用 CPU
         if use_gpu and torch.cuda.is_available():
             self.device = torch.device("cuda:0")
+            self.dtype = torch.bfloat16
         else:
             self.device = torch.device("cpu")
+            self.dtype = torch.float32
         # 全句级风险阈值（用于最终句子级别风险分层）
         self.risk_threshold = risk_threshold
         self.severe_threshold = severe_threshold
@@ -171,6 +177,11 @@ class SwallowPredictor:
         self.model = Wav2Vec2ForCTC.from_pretrained(model_path).to(self.device)
         self.model.eval()
         self.language = language
+        self.forced_aligner_model_path = forced_aligner_model_path
+        self.use_forced_aligner = (
+            use_forced_aligner and Qwen3ForcedAligner is not None
+        )
+        self.forced_aligner = None
         # TODO 后续扩展s2方案无参考文本的 admm惩罚项优化
         self.use_admm = use_admm
 
@@ -186,7 +197,7 @@ class SwallowPredictor:
         注意：
           - 返回的 logits 仍在 DEVICE（cuda/CPU），调用方在分析时会在 CPU 上计算进一步指标。
         """
-        # 转成 np.float32，保证后续处理兼容
+        # 转成 np.float32
         wav = audio_segment.samples.astype(np.float32)
         inputs = self.processor(wav, sampling_rate=SAMPLE_RATE, return_tensors="pt")
         with torch.no_grad():
@@ -407,6 +418,143 @@ class SwallowPredictor:
         return S2, reasons, metrics
 
     # ---------- 分析入口 ----------
+    def _get_forced_aligner(self):
+        if not self.use_forced_aligner:
+            return None
+        if self.forced_aligner is not None:
+            return self.forced_aligner
+        self.forced_aligner = Qwen3ForcedAligner.from_pretrained(
+            self.forced_aligner_model_path,
+            dtype=self.dtype,
+            device_map=self.device,
+        )
+        return self.forced_aligner
+
+    def _normalize_qwen_units(self, results):
+        if not isinstance(results, (list, tuple)) or len(results) == 0:
+            return []
+        units = results[0]
+        normalized = []
+        for u in units:
+            if u is None:
+                continue
+            if isinstance(u, dict):
+                text = u.get("text")
+                start_time = u.get("start_time", u.get("start"))
+                end_time = u.get("end_time", u.get("end"))
+            else:
+                text = getattr(u, "text", None)
+                start_time = getattr(u, "start_time", None)
+                end_time = getattr(u, "end_time", None)
+            try:
+                start_time = float(start_time)
+                end_time = float(end_time)
+            except (TypeError, ValueError):
+                continue
+            if end_time <= start_time:
+                continue
+            normalized.append({"text": text, "start": start_time, "end": end_time})
+        return normalized
+
+    def _apply_qwen3_s1(
+        self, phoneme_results: list, wav: np.ndarray, reference_text: str
+    ) -> bool:
+        aligner = self._get_forced_aligner()
+        if aligner is None:
+            return False
+        try:
+            results = aligner.align(
+                audio=(wav, SAMPLE_RATE),
+                text=reference_text,
+                language=self.language,
+            )
+        except Exception:
+            return False
+
+        units = self._normalize_qwen_units(results)
+        if not units:
+            return False
+
+        durations = [u.get("end", 0) - u.get("start", 0) for u in units]
+        base_duration = max(0.03, float(np.median(durations))) if durations else 0.08
+
+        alpha = 0.2  # S2 权重（声学占比）
+        beta = 0.8  # S1 权重（对齐占比）
+        for p in phoneme_results:
+            p_start = float(p["start"])
+            p_end = float(p["end"])
+            best_overlap = 0.0
+            best_unit = None
+
+            for u in units:
+                overlap = max(0.0, min(p_end, u.get("end", 0)) - max(p_start, u.get("start", 0)))
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best_unit = u
+
+            if best_unit is None or best_overlap <= 0:
+                s1, r1 = 0.5, "音素缺失"
+            else:
+                unit_duration = max(1e-4, best_unit["end"] - best_unit["start"])
+                ratio = unit_duration / (base_duration + 1e-8)
+                s1 = (
+                    float(clamp((1.0 - ratio) * 0.7, 0.0, 0.7)) if ratio < 1.0 else 0.0
+                )
+                r1 = "音素模糊" if s1 > 0 else "ok"
+
+            p["S1"] = s1
+            p["S1_percent"] = s1 * 100
+            p["penalty_score"] = 1 - ((1 - p["S2"]) ** alpha) * ((1 - s1) ** beta)
+            if s1 > 0 and r1 not in p["reasons"]:
+                p["reasons"].append(r1)
+            p["penalty_score_percent"] = p["penalty_score"] * 100
+        return True
+
+    def _apply_ctc_s1(
+        self, phoneme_results: list, logits: torch.Tensor, reference_text: str
+    ) -> bool:
+        try:
+            targets = text2phoneme_or_token(
+                reference_text, self.language, self.processor
+            ).to(logits.device)
+
+            # log_probs: (1, T, C)
+            log_probs = torch.log_softmax(logits, dim=-1).unsqueeze(0)
+
+            # CTC 强制对齐
+            alignment, _ = F.forced_align(log_probs, targets, blank=BLANK_ID)
+
+            alignment = alignment[0]  # (T,)
+            target_ids = targets[0]  # (L,)
+
+            s1_map = {}
+            for pid in target_ids:
+                frames = (alignment == pid).nonzero(as_tuple=True)[0]
+                if len(frames) == 0:
+                    s1_map[int(pid)] = (1.0, "音素缺失")
+                else:
+                    duration = frames[-1] - frames[0] + 1
+                    s1_map[int(pid)] = (
+                        0.7 if duration <= 2 else 0.0,
+                        "音素模糊" if duration <= 2 else "ok",
+                    )
+
+            alpha = 0.2  # S2 权重（声学占比）
+            beta = 0.8  # S1 权重（对齐占比）
+            for p in phoneme_results:
+                s1, r1 = s1_map.get(p["pid"], (0.0, "no_ref"))
+                p["S1"] = s1
+                p["S1_percent"] = s1 * 100
+
+                p["penalty_score"] = 1 - ((1 - p["S2"]) ** alpha) * ((1 - s1) ** beta)
+
+                if s1 > 0 and r1 not in p["reasons"]:
+                    p["reasons"].append(r1)
+                p["penalty_score_percent"] = p["penalty_score"] * 100
+        except Exception:
+            return False
+        return True
+
     def analyze(self, audio_segment: AudioSegment, reference_text: str) -> dict:
         """
         主分析入口：对给定音频执行完整流程并返回结构化结果。
@@ -461,46 +609,19 @@ class SwallowPredictor:
                     ),
                 }
             )
-        # ---------- 参考文本 S1（字符级，推荐方案） ----------
+        # ---------- 参考文本 S1（中文优先使用 Qwen3 强制对齐） ----------
+        """
+        TODO 补充token覆盖实现
+        """
         if reference_text:
-            targets = text2phoneme_or_token(
-                reference_text, self.language, self.processor
-            ).to(logits.device)
+            applied = False
+            if self.language in TOKEN_LANGUAGE:
+                applied = self._apply_qwen3_s1(phoneme_results, wav, reference_text)
+            if not applied:
+                self._apply_ctc_s1(phoneme_results, logits, reference_text)
 
-            # log_probs: (1, T, C)
-            log_probs = torch.log_softmax(logits, dim=-1).unsqueeze(0)
-
-            # CTC 强制对齐
-            alignment, _ = F.forced_align(log_probs, targets, blank=BLANK_ID)
-
-            alignment = alignment[0]  # (T,)
-            target_ids = targets[0]  # (L,)
-
-            s1_map = {}
-            for pid in target_ids:
-                frames = (alignment == pid).nonzero(as_tuple=True)[0]
-                if len(frames) == 0:
-                    s1_map[int(pid)] = (1.0, "deletion")
-                else:
-                    duration = frames[-1] - frames[0] + 1
-                    s1_map[int(pid)] = (
-                        0.7 if duration <= 2 else 0.0,
-                        "compressed" if duration <= 2 else "ok",
-                    )
-            alpha = 0.2  # S2 权重（声学占比）
-            beta = 0.8  # S1 权重（对齐占比）
-            for p in phoneme_results:
-                s1, r1 = s1_map.get(p["pid"], (0.0, "no_ref"))
-                p["S1"] = s1
-                p["S1_percent"] = s1 * 100
-
-                p["penalty_score"] = 1 - ((1 - p["S2"]) ** alpha) * ((1 - s1) ** beta)
-
-                if s1 > 0 and r1 not in p["reasons"]:
-                    p["reasons"].append(r1)
-                p["penalty_score_percent"] = p["penalty_score"] * 100
-
-        return self.aggregate(phoneme_results)
+        result = self.aggregate(phoneme_results)
+        return result
 
     # ---------- 聚合句级评分 ----------
     def aggregate(self, phonemes) -> dict:

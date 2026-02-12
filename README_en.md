@@ -442,6 +442,14 @@ app/
 
 # quick start
 # uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+
+# support cpu
+uv sync --extra cpu
+# support cuda
+uv sync --extra cu128
+# Additionally, there are API changes between Transformers 5 and 4. You can specify the version using `transformers==4.57.3`.
+uv pip install transformers==4.57.6 qwen-asr
+
 uv run main.py
 ```
 
