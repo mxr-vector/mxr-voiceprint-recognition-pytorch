@@ -60,13 +60,13 @@ zcr: 惩罚频率变化过快的音素
 spectral: 惩罚频谱偏高或偏低的音素
 bandwodth: 谱带宽权重，介于ZCR和SPECTRAL之间
 """
-# 关键特征加权
-W_DURATION = 4.0
+# 关键特征加权 (重平衡：清晰度优先)
+W_DURATION = 3.0
 W_BLANK = 3.0
-W_POSTERIOR = 2.0
-W_ENERGY = 2.5
-# 可选其他特征小权重
-W_ENTROPY = 1.0
+W_POSTERIOR = 6.0    # 显著提升后验概率权重
+W_ENERGY = 2.0
+# 可选其他特征权重
+W_ENTROPY = 4.0      # 显著提升熵权重（模糊度）
 W_VOICING = 1.0
 W_ZCR = 0.2
 W_SPECTRAL = 0.5
@@ -140,8 +140,8 @@ class SwallowPredictor:
         phoneme_model_path="facebook/wav2vec2-large-960h-lv60-self",
         forced_aligner_model_path=QWEN_FORCED_ALIGNER_MODEL,
         use_forced_aligner=True,
-        risk_threshold=0.5,
-        severe_threshold=0.7,
+        risk_threshold=0.45,
+        severe_threshold=0.65,
         use_gpu=True,
         use_admm=False,
     ):
@@ -370,8 +370,8 @@ class SwallowPredictor:
             + W_BANDWIDTH * bandwidth_norm
         )
 
-        # 分段非线性映射
-        S2 = nonlinear_map(S2_linear)
+        # S2 质量分 = 1 - 惩罚分（单调、可解释）
+        S2 = float(clamp(1 - S2_linear))
 
         # ---------- 指标详情字典 ----------
         metrics = {
@@ -390,8 +390,8 @@ class SwallowPredictor:
             "bandwidth": float(
                 W_BANDWIDTH * bandwidth_norm
             ),  # 谱带宽惩罚：频谱带宽过窄
-            "linear_score": float(S2_linear),  # 线性加权总分（映射前）
-            "final_score": float(S2),  # 最终S2分数（非线性映射后，0-1范围）
+            "linear_score": float(S2_linear),  # 线性加权惩罚总分（0~1，越高越差）
+            "final_score": float(S2),  # S2质量分（1-linear_score，越高越好）
         }
 
         # ---------- 原因列表 ----------
@@ -535,7 +535,9 @@ class SwallowPredictor:
             s1 = float(clamp((1.0 - ratio) * 0.7, 0.0, 0.7)) if ratio < 1.0 else 0.0
             r1 = "音素模糊" if s1 > 0 else "ok"
 
-            penalty_score = 1 - ((1 - S2) ** alpha) * ((1 - s1) ** beta)
+            # 综合质量分：S2 为质量分（高=好），(1-s1) 将对齐惩罚转为质量分
+            # 对齐权重(0.8) >> 声学权重(0.2)，对齐良好时综合得分高
+            penalty_score = float(clamp(alpha * S2 + beta * (1 - s1)))
             if s1 > 0 and r1 not in reasons:
                 reasons.append(r1)
 
@@ -600,11 +602,17 @@ class SwallowPredictor:
                 p["S1"] = s1
                 p["S1_percent"] = s1 * 100
 
-                p["penalty_score"] = 1 - ((1 - p["S2"]) ** alpha) * ((1 - s1) ** beta)
+                # 综合质量分：与 Qwen3 路径一致（高=好）
+                p["penalty_score"] = float(clamp(alpha * p["S2"] + beta * (1 - s1)))
 
                 if s1 > 0 and r1 not in p["reasons"]:
                     p["reasons"].append(r1)
                 p["penalty_score_percent"] = p["penalty_score"] * 100
+                p["risk_level"] = (
+                    "高风险"
+                    if p["penalty_score"] < self.risk_threshold
+                    else "疑似吞音" if p["penalty_score"] < self.severe_threshold else "正常"
+                )
         except Exception:
             return False
         return True
@@ -618,21 +626,49 @@ class SwallowPredictor:
     ) -> list:
         """
         基于 CTC 分段构建 phoneme_results（无参考文本或 Qwen3 回退时使用）。
+        增加 Mumble Detection：捕捉有能量的 Blank 片段。
         """
         durations = [
             (end - start) * FRAME_MS
             for pid, start, end, _ in segments
             if pid != BLANK_ID
         ]
+        
+        # 为了计算 Blank 能量，需要先算 RMS
+        hop_length = int(FRAME_MS / 1000 * SAMPLE_RATE)
+        rms = librosa.feature.rms(y=wav, frame_length=hop_length, hop_length=hop_length)[0]
+        rms_mean = rms.mean()
+
         phoneme_results = []
         for pid, start, end, probs_segment in segments:
+            duration_ms = (end - start) * FRAME_MS
+            
+            # --- Mumble Detection (针对无参考文本模式下的模糊发音捕获) ---
+            is_mumble = False
             if pid == BLANK_ID:
-                continue
+                # 如果 Blank 段很长 (>50ms) 且能量超过整体均值的一半，认为是模糊发音
+                seg_energy = float(rms[start:end].mean()) if start < len(rms) else 0.0
+                if duration_ms > 50 and seg_energy > 0.5 * rms_mean:
+                    is_mumble = True
+                else:
+                    continue
+
             S2, reasons, metrics = self.score_s2(
                 pid, start, end, probs_segment, wav, durations
             )
-            token = self.processor.tokenizer._convert_id_to_token(pid)
+            
+            # 如果是 Mumble，强制给一个较低的 S2 质量分
+            if is_mumble:
+                S2 = min(S2, 0.4)
+                if "模糊发音(Mumble)" not in reasons:
+                    reasons.append("模糊发音(Mumble)")
+
+            token = "[MUMBLE]" if is_mumble else self.processor.tokenizer._convert_id_to_token(pid)
             py = token_to_pinyin(token)
+            
+            # 在 CTC 模式下，penalty_score 初始由 S2 决定
+            penalty_score = S2 
+            
             phoneme_results.append(
                 {
                     "pid": int(pid),
@@ -644,12 +680,12 @@ class SwallowPredictor:
                     "S2_percent": S2 * 100,
                     "metrics": metrics,
                     "reasons": reasons,
-                    "penalty_score": S2,
-                    "penalty_score_percent": S2 * 100,
+                    "penalty_score": penalty_score,
+                    "penalty_score_percent": penalty_score * 100,
                     "risk_level": (
                         "高风险"
-                        if S2 < self.risk_threshold
-                        else "疑似吞音" if S2 < self.severe_threshold else "正常"
+                        if penalty_score < self.risk_threshold
+                        else "疑似吞音" if penalty_score < self.severe_threshold else "正常"
                     ),
                 }
             )
@@ -694,14 +730,13 @@ class SwallowPredictor:
         返回：
           - dict 包含 final_score（0-100）、sentence_risk_level、phonemes（原列表）
         聚合策略：
-          - 结合 90 百分位与高风险比例进行非线性聚合，兼顾极端高分项与整体分布。
+          - 结合 10 百分位分数与平均分进行加权聚合，确保单个严重异常词能有效拉低总分。
         """
         scores = np.array([p["penalty_score"] for p in phonemes])
-        max_score = scores.max()
-        high_risk_ratio = (scores > self.severe_threshold).mean()
-        # 改进非线性聚合：使用 percentile + 平均权重
-        percentile90 = np.percentile(scores, 90)
-        final_score = float(clamp(1 - 0.3 * percentile90 - 0.7 * high_risk_ratio, 0, 1))
+        # 聚合：整体水平（均值）+ 最差表现（第10百分位），兼顾整体与极端
+        mean_score = float(np.mean(scores))
+        percentile10 = float(np.percentile(scores, 10))
+        final_score = float(clamp(0.4 * percentile10 + 0.6 * mean_score, 0, 1))
 
         risk_level = (
             "高风险"
