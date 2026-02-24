@@ -45,8 +45,6 @@ BLANK_ID = 0
 # 合并非常短段的阈值（毫秒），小于该时长的段会合并到邻近段
 MERGE_SHORT_MS = 10
 
-QWEN_FORCED_ALIGNER_MODEL = "Qwen/Qwen3-ForcedAligner-0.6B"
-
 # ------- 权重（各特征在最终 S2 评分中的线性权重，随后会归一化） -------
 """
 S2 惩罚项
@@ -138,7 +136,7 @@ class SwallowPredictor:
         language="zh-cn",
         token_model_path="jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn",
         phoneme_model_path="facebook/wav2vec2-large-960h-lv60-self",
-        forced_aligner_model_path=QWEN_FORCED_ALIGNER_MODEL,
+        forced_aligner_model_path="Qwen/Qwen3-ForcedAligner-0.6B",
         use_forced_aligner=True,
         risk_threshold=0.45,
         severe_threshold=0.65,
@@ -173,8 +171,29 @@ class SwallowPredictor:
         self.risk_threshold = risk_threshold
         self.severe_threshold = severe_threshold
         # 加载 processor 与模型
+        if torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = True
+        
         self.processor = Wav2Vec2Processor.from_pretrained(model_path)
-        self.model = Wav2Vec2ForCTC.from_pretrained(model_path).to(self.device)
+        
+        # 优先加速：Flash Attention 2 > SDPA
+        base_attn_impl = "sdpa"
+        if torch.cuda.is_available():
+            try:
+                import flash_attn
+                base_attn_impl = "flash_attention_2"
+            except (ImportError, RuntimeError):
+                base_attn_impl = "sdpa"
+            
+        try:
+            self.model = Wav2Vec2ForCTC.from_pretrained(
+                model_path,
+                attn_implementation=base_attn_impl if torch.cuda.is_available() else None
+            ).to(self.device)
+        except Exception as e:
+            print(f"Warning: Failed to load Wav2Vec2 with {base_attn_impl}: {e}. Falling back to default.")
+            self.model = Wav2Vec2ForCTC.from_pretrained(model_path).to(self.device)
+
         self.model.eval()
         self.language = language
         self.forced_aligner_model_path = forced_aligner_model_path
@@ -200,7 +219,7 @@ class SwallowPredictor:
         # 转成 np.float32
         wav = audio_segment.samples.astype(np.float32)
         inputs = self.processor(wav, sampling_rate=SAMPLE_RATE, return_tensors="pt")
-        with torch.no_grad():
+        with torch.inference_mode():
             logits = self.model(inputs.input_values.to(self.device)).logits
         return wav, logits[0]
 
@@ -246,29 +265,11 @@ class SwallowPredictor:
                 merged.append((pid, start, end, pseg))
         return merged
 
-    # ---------- 改进 S2 评分 ----------
-    def score_s2(
-        self,
-        pid: int,
-        start: float,
-        end: float,
-        probs_segment: np.ndarray,
-        wav: np.ndarray,
-        durations: list,
-    ) -> tuple:
+    # ---------- 提取全局音频特征 ----------
+    def _extract_global_features(self, wav: np.ndarray) -> dict:
         """
-        计算改进的 S2（分段吞音风险评分），结合时长、后验、空白率、能量、谱熵、发声率、ZCR、谱质心等特征。
-        参数：
-        - pid, start, end: 段信息（token id, 帧起, 帧止）
-        - probs_segment: 段内每帧模型概率分布（numpy array，shape (L, C)）
-        - wav: 音频数据
-        - durations: 非空白音素时长列表
-        返回：
-        - S2: 归一化后的分数（0-1，值越大表示越可能吞音）
-        - reasons: 原因列表（字符串），对应触发的特征异常项
-        - metrics: 各项指标的字典，包含归一化值和原始值
+        一次性计算音频的所有昂贵全局特征。
         """
-
         hop_length = int(FRAME_MS / 1000 * SAMPLE_RATE)
         rms = librosa.feature.rms(
             y=wav, frame_length=hop_length, hop_length=hop_length
@@ -297,9 +298,57 @@ class SwallowPredictor:
         except Exception:
             f0 = None
 
-        avg_duration_ms = np.mean(durations) if durations else FRAME_MS * 2
+        return {
+            "rms": rms,
+            "rms_mean": rms_mean,
+            "zcr": zcr,
+            "centroid": centroid,
+            "bandwidth": bandwidth,
+            "f0": f0,
+        }
 
-        duration_ms = (end - start) * FRAME_MS
+    # ---------- 改进 S2 评分 ----------
+    def score_s2(
+        self,
+        pid: int,
+        start: float,
+        end: float,
+        probs_segment: np.ndarray,
+        wav: np.ndarray,
+        durations: list,
+        global_features: dict = None,
+    ) -> tuple:
+        """
+        计算改进的 S2（分段吞音风险评分），结合时长、后验、空白率、能量、谱熵、发声率、ZCR、谱质心等特征。
+        参数：
+        - pid, start, end: 段信息（token id, 帧起, 帧止）
+        - probs_segment: 段内每帧模型概率分布（numpy array，shape (L, C)）
+        - wav: 音频数据
+        - durations: 非空白音素时长列表
+        - global_features: 预计算的全局音频特征字典
+        - frame_ms: 实际的帧时长（毫秒），默认为 20.0 (Wav2Vec2 常用)
+        返回：
+        - S2: 归一化后的分数（0-1，值越大表示越可能吞音）
+        - reasons: 原因列表（字符串），对应触发的特征异常项
+        - metrics: 各项指标的字典，包含归一化值和原始值
+        """
+        if global_features is None:
+            # Fallback if not provided, though it's recommended to pre-calculate
+            global_features = self._extract_global_features(wav)
+
+        # 动态获取帧时长
+        f_ms = durations.get("frame_ms", FRAME_MS) if isinstance(durations, dict) else FRAME_MS
+
+        rms = global_features["rms"]
+        rms_mean = global_features["rms_mean"]
+        zcr = global_features["zcr"]
+        centroid = global_features["centroid"]
+        bandwidth = global_features["bandwidth"]
+        f0 = global_features["f0"]
+
+        avg_duration_ms = np.mean(durations) if isinstance(durations, list) and durations else f_ms * 2
+
+        duration_ms = (end - start) * f_ms
         posterior = (
             float(probs_segment[:, pid].mean()) if pid < probs_segment.shape[1] else 0.0
         )
@@ -422,11 +471,39 @@ class SwallowPredictor:
             return None
         if self.forced_aligner is not None:
             return self.forced_aligner
-        self.forced_aligner = Qwen3ForcedAligner.from_pretrained(
-            self.forced_aligner_model_path,
-            dtype=self.dtype,
-            device_map=self.device,
-        )
+            
+        # 优先加速：Flash Attention 2 > SDPA
+        attn_impl = "sdpa"
+        if torch.cuda.is_available():
+            try:
+                import flash_attn
+                attn_impl = "flash_attention_2"
+            except (ImportError, RuntimeError):
+                attn_impl = "sdpa"
+
+        try:
+            self.forced_aligner = Qwen3ForcedAligner.from_pretrained(
+                self.forced_aligner_model_path,
+                dtype=self.dtype,
+                device_map=self.device,
+                attn_implementation=attn_impl if torch.cuda.is_available() else None,
+            )
+        except Exception as e:
+            print(f"Error loading Qwen3 Forced Aligner: {e}")
+            self.use_forced_aligner = False
+            return None
+        
+        # 进一步加速：编译 thinker 模块 (仅在推理模式下)
+        # 注意：在 Windows 环境下经常因为缺少 cl.exe 失败，暂时禁用以保证稳定性
+        # if hasattr(torch, "compile") and torch.cuda.is_available():
+        #     try:
+        #         self.forced_aligner.model.thinker = torch.compile(
+        #             self.forced_aligner.model.thinker,
+        #             mode="reduce-overhead"
+        #         )
+        #     except Exception as e:
+        #         print(f"Warning: torch.compile failed: {e}. Falling back to eager mode.")
+
         return self.forced_aligner
 
     def _normalize_qwen_units(self, results):
@@ -480,18 +557,22 @@ class SwallowPredictor:
                 text=reference_text,
                 language=self.language,
             )
-        except Exception:
+        except Exception as e:
+            print(f"Qwen3 align failed: {e}")
             return None
 
         units = self._normalize_qwen_units(results)
         if not units:
             return None
 
-        # ---------- 准备 CTC 概率矩阵（帧级），用于 S2 声学评分 ----------
+        # ---------- 准备音频特征和 CTC 概率矩阵 ----------
+        global_features = self._extract_global_features(wav)
         log_probs = torch.log_softmax(logits, dim=-1).cpu()
         probs = log_probs.exp().numpy()  # shape (T, C)
         total_frames = probs.shape[0]
-
+        # 准备实际帧时长映射 (重要：Wav2Vec2 概率矩阵与时间的对应关系)
+        real_frame_ms = (len(wav) / SAMPLE_RATE * 1000.0) / total_frames
+        
         # 对齐 unit 时长（秒）→ 帧级时长（毫秒），用于 S2 的 durations 参数
         durations_ms = [
             (u["end"] - u["start"]) * 1000.0 for u in units
@@ -509,9 +590,9 @@ class SwallowPredictor:
             u_start_sec = u["start"]
             u_end_sec = u["end"]
 
-            # 时间（秒）→ 帧索引
-            frame_start = int(u_start_sec * 1000.0 / FRAME_MS)
-            frame_end = int(u_end_sec * 1000.0 / FRAME_MS)
+            # 时间（秒）→ 帧索引 (精确映射)
+            frame_start = int(u_start_sec * 1000.0 / real_frame_ms)
+            frame_end = int(u_end_sec * 1000.0 / real_frame_ms)
             frame_start = max(0, min(frame_start, total_frames - 1))
             frame_end = max(frame_start + 1, min(frame_end, total_frames))
 
@@ -526,7 +607,7 @@ class SwallowPredictor:
 
             # S2 声学评分
             S2, reasons, metrics = self.score_s2(
-                pid, frame_start, frame_end, probs_segment, wav, durations_ms
+                pid, frame_start, frame_end, probs_segment, wav, durations_ms, global_features
             )
 
             # S1 对齐评分（基于 duration ratio）
@@ -628,16 +709,20 @@ class SwallowPredictor:
         基于 CTC 分段构建 phoneme_results（无参考文本或 Qwen3 回退时使用）。
         增加 Mumble Detection：捕捉有能量的 Blank 片段。
         """
+        # 准备实际帧时长映射
+        total_frames = logits.shape[0]
+        real_frame_ms = (len(wav) / SAMPLE_RATE * 1000.0) / total_frames
+        
         durations = [
-            (end - start) * FRAME_MS
+            (end - start) * real_frame_ms
             for pid, start, end, _ in segments
             if pid != BLANK_ID
         ]
         
         # 为了计算 Blank 能量，需要先算 RMS
-        hop_length = int(FRAME_MS / 1000 * SAMPLE_RATE)
-        rms = librosa.feature.rms(y=wav, frame_length=hop_length, hop_length=hop_length)[0]
-        rms_mean = rms.mean()
+        global_features = self._extract_global_features(wav)
+        rms = global_features["rms"]
+        rms_mean = global_features["rms_mean"]
 
         phoneme_results = []
         for pid, start, end, probs_segment in segments:
@@ -654,7 +739,7 @@ class SwallowPredictor:
                     continue
 
             S2, reasons, metrics = self.score_s2(
-                pid, start, end, probs_segment, wav, durations
+                pid, start, end, probs_segment, wav, durations, global_features
             )
             
             # 如果是 Mumble，强制给一个较低的 S2 质量分
@@ -674,8 +759,8 @@ class SwallowPredictor:
                     "pid": int(pid),
                     "token": token,
                     "pinyin": py,
-                    "start": start * FRAME_MS / 1000,
-                    "end": end * FRAME_MS / 1000,
+                    "start": start * real_frame_ms / 1000,
+                    "end": end * real_frame_ms / 1000,
                     "S2": S2,
                     "S2_percent": S2 * 100,
                     "metrics": metrics,
@@ -709,11 +794,19 @@ class SwallowPredictor:
         phoneme_results = None
         # ---------- 优先使用 Qwen3 对齐构建（每字一条，无重复/缺失） ----------
         if reference_text and self.language in TOKEN_LANGUAGE:
+            print(f"Path selected: Qwen3 Forced Aligner (lang={self.language})")
             phoneme_results = self._build_phonemes_from_qwen3(
                 wav, logits, reference_text
             )
         # ---------- 回退：CTC 分段 ----------
         if phoneme_results is None:
+            if reference_text and self.language in TOKEN_LANGUAGE:
+                print("Warning: Qwen3 path failed, falling back to CTC segmentation path.")
+            elif reference_text:
+                print(f"Info: Language '{self.language}' not supported by Qwen3 aligner path, using CTC path.")
+            else:
+                print("Path selected: CTC segmentation (no reference text)")
+            
             segments = self.ctc_segments(logits)
             phoneme_results = self._build_phonemes_from_ctc(
                 segments, wav, logits, reference_text
