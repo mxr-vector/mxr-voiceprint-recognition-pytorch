@@ -626,6 +626,7 @@ uv sync --extra cu128
 # 另外transformers5和4的api变化有些不同，你可以 transformers==4.57.3指定版本
 uv pip install transformers==4.57.3 qwen-asr
 
+# uv pip install flash-attn --no-build-isolation
 uv run main.py
 
 ```

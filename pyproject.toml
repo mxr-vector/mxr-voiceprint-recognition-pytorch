@@ -29,6 +29,7 @@ dependencies = [
     "uvicorn[standard]>=0.38.0",
     "visualdl==2.5.3",
     "yeaudio>=0.0.7",
+    "setuptools>=80.9.0",
 ]
 
 
