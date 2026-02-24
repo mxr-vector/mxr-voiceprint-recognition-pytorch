@@ -38,6 +38,8 @@ class __SwallowPredictorService:
 
         if self.args.ctc_phoneme_model_path:
             kwargs["phoneme_model_path"] = self.args.ctc_phoneme_model_path
+        if self.args.forced_aligner_model_path:
+            kwargs["forced_aligner_model_path"] = self.args.forced_aligner_model_path
         return SwallowPredictor(**kwargs)
 
     async def analyze(

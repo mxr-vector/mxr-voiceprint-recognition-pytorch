@@ -11,7 +11,7 @@ from qwen_asr import Qwen3ForcedAligner
 from pypinyin import pinyin, Style
 from mvector.utils.audio_utils import load_audio_segment
 from yeaudio.audio import AudioSegment
-
+from transformers.utils import is_flash_attn_2_available
 # ============================================================
 # 全局配置（已添加详细注释）
 # ============================================================
@@ -177,29 +177,16 @@ class SwallowPredictor:
         self.processor = Wav2Vec2Processor.from_pretrained(model_path)
         
         # 优先加速：Flash Attention 2 > SDPA
-        base_attn_impl = "sdpa"
-        if torch.cuda.is_available():
-            try:
-                import flash_attn
-                base_attn_impl = "flash_attention_2"
-            except (ImportError, RuntimeError):
-                base_attn_impl = "sdpa"
-            
-        try:
-            self.model = Wav2Vec2ForCTC.from_pretrained(
-                model_path,
-                attn_implementation=base_attn_impl if torch.cuda.is_available() else None
-            ).to(self.device)
-        except Exception as e:
-            print(f"Warning: Failed to load Wav2Vec2 with {base_attn_impl}: {e}. Falling back to default.")
-            self.model = Wav2Vec2ForCTC.from_pretrained(model_path).to(self.device)
+        base_attn_impl = select_attention_impl(self.dtype)
+        self.model = Wav2Vec2ForCTC.from_pretrained(
+            model_path,
+            attn_implementation=base_attn_impl if torch.cuda.is_available() else None
+        ).to(self.device)
 
         self.model.eval()
         self.language = language
         self.forced_aligner_model_path = forced_aligner_model_path
-        self.use_forced_aligner = (
-            use_forced_aligner and Qwen3ForcedAligner is not None
-        )
+        self.use_forced_aligner = use_forced_aligner
         self.forced_aligner = None
         # TODO 后续扩展s2方案无参考文本的 admm惩罚项优化
         self.use_admm = use_admm
@@ -473,25 +460,14 @@ class SwallowPredictor:
             return self.forced_aligner
             
         # 优先加速：Flash Attention 2 > SDPA
-        attn_impl = "sdpa"
-        if torch.cuda.is_available():
-            try:
-                import flash_attn
-                attn_impl = "flash_attention_2"
-            except (ImportError, RuntimeError):
-                attn_impl = "sdpa"
+        attn_impl = select_attention_impl(self.dtype)
 
-        try:
-            self.forced_aligner = Qwen3ForcedAligner.from_pretrained(
-                self.forced_aligner_model_path,
-                dtype=self.dtype,
-                device_map=self.device,
-                attn_implementation=attn_impl if torch.cuda.is_available() else None,
-            )
-        except Exception as e:
-            print(f"Error loading Qwen3 Forced Aligner: {e}")
-            self.use_forced_aligner = False
-            return None
+        self.forced_aligner = Qwen3ForcedAligner.from_pretrained(
+            self.forced_aligner_model_path,
+            torch_dtype=self.dtype,
+            device_map=self.device,
+            attn_implementation=attn_impl,
+        )
         
         # 进一步加速：编译 thinker 模块 (仅在推理模式下)
         # 注意：在 Windows 环境下经常因为缺少 cl.exe 失败，暂时禁用以保证稳定性
@@ -947,6 +923,36 @@ def text2phoneme_or_token(
     return torch.tensor(ids, dtype=torch.long).unsqueeze(0)  # shape (1, L)
 
 
+def select_attention_impl(dtype: torch.dtype) -> str:
+    """
+    自动选择最优 attention 实现
+    优先级：
+        1. flash_attention_2
+        2. sdpa
+        3. eager
+    仅依赖 dtype
+    """
+
+    # CUDA 不存在
+    if not torch.cuda.is_available():
+        return "eager"
+
+    # dtype 不满足 FlashAttention 要求
+    if dtype not in (torch.float16, torch.bfloat16):
+        return "sdpa"
+
+    # transformers 检查 flash-attn2 是否可用
+    if not is_flash_attn_2_available():
+        return "sdpa"
+
+    # GPU 架构必须 SM80+
+    try:
+        major, _ = torch.cuda.get_device_capability()
+        if major >= 8:
+            return "flash_attention_2"
+    except Exception:
+        return "sdpa"
+    return "sdpa"
 # ============================================================
 # 示例运行
 # ============================================================

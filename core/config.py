@@ -57,6 +57,7 @@ def __build_parser_args() -> argparse.ArgumentParser:
         "models/hf/wav2vec2-large-960h-lv60-self",
         "语音表征CTC 音素检测模型文件路径",
     )
+    add_arg("forced_aligner_model_path",str,"models/hf/Qwen3-ForcedAligner-0.6B","强制对齐模型文件路径")
     add_arg("risk_threshold", float, 0.45, " 高风险阈值")
     add_arg("severe_threshold", float, 0.65, " 疑似吞音风险阈值")
     # 通用参数
