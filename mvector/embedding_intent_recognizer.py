@@ -14,8 +14,7 @@ from __future__ import annotations
 import torch
 import torch.nn.functional as F
 from dataclasses import dataclass
-from transformers import AutoTokenizer
-from transformers.models.qwen3 import Qwen3ForCausalLM
+from transformers import AutoTokenizer, AutoModel
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 数据结构
@@ -152,7 +151,7 @@ class EmbeddingIntentRecognizer:
         if self._model is not None:
             return
         self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-        self._model = Qwen3ForCausalLM.from_pretrained(
+        self._model = AutoModel.from_pretrained(
             self._model_name,
             dtype=torch.bfloat16,
             device_map="auto",
