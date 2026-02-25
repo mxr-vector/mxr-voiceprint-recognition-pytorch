@@ -62,7 +62,7 @@ def __build_parser_args() -> argparse.ArgumentParser:
     add_arg("severe_threshold", float, 0.65, " 疑似吞音风险阈值")
 
     # 意图识别模型
-    add_arg("intent_model_path",str,"models/hf/Qwen3-ForcedAligner-0.6B","意图识别模型文件路径")
+    add_arg("intent_model_path",str,"models/hf/Qwen3-Embedding-4B","意图识别模型文件路径")
     add_arg("intent_threshold", float, 0.55, "意图识别阈值")
     add_arg("intent_window_sizes", list[int], [3, 5, 8, 12], "意图识别滑窗尺寸")
     # 通用参数

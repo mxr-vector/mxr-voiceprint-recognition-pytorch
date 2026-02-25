@@ -14,7 +14,8 @@ from __future__ import annotations
 import torch
 import torch.nn.functional as F
 from dataclasses import dataclass
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer
+from transformers.models.qwen3 import Qwen3ForCausalLM
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 数据结构
@@ -25,6 +26,10 @@ class IntentResult:
     label: str      # 意图标签
     score: float    # 余弦相似度得分
     span: str       # 命中 span 描述（用于可追溯性）
+
+    def __iter__(self):
+        """支持 for label, score, desc in results 位置解包。"""
+        return iter((self.label, self.score, self.span))
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -147,7 +152,7 @@ class EmbeddingIntentRecognizer:
         if self._model is not None:
             return
         self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-        self._model = AutoModel.from_pretrained(
+        self._model = Qwen3ForCausalLM.from_pretrained(
             self._model_name,
             dtype=torch.bfloat16,
             device_map="auto",
@@ -256,8 +261,9 @@ class EmbeddingIntentRecognizer:
             max_length=128,
             return_tensors="pt",
         ).to(self._device)
-        outputs = self._model(**inputs)
-        emb = outputs.last_hidden_state.mean(dim=1).float()
+        outputs = self._model(**inputs, output_hidden_states=True)
+        hidden = outputs.hidden_states[-1]  # (B, seq_len, dim)
+        emb = hidden.mean(dim=1).float()
         return F.normalize(emb, p=2, dim=1)
 
     @torch.no_grad()
@@ -269,8 +275,8 @@ class EmbeddingIntentRecognizer:
             truncation=True,
             max_length=256,
         ).to(self._device)
-        outputs = self._model(**inputs)
-        hidden = outputs.last_hidden_state[0].float()
+        outputs = self._model(**inputs, output_hidden_states=True)
+        hidden = outputs.hidden_states[-1][0].float()
         tokens = self._tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
         return hidden, tokens
 
