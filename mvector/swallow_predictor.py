@@ -1,134 +1,372 @@
 ﻿# ============================================================
-# 改进版二合一吞音检测系统（生产级方案2）
-# 归一化 + 分段非线性 + 可选 ADMM 优化
+# 企业级吞音检测系统
+# 模块化架构：Config → FeatureExtractor → Scorer → Orchestrator
 # ============================================================
+import logging
+from dataclasses import dataclass, field
+from typing import NamedTuple, Optional
+
+import librosa
+import numpy as np
 import torch
 import torchaudio.functional as F
-import numpy as np
-import librosa
-from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
-from qwen_asr import Qwen3ForcedAligner
 from pypinyin import pinyin, Style
+from qwen_asr import Qwen3ForcedAligner
+from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
+from transformers.utils import is_flash_attn_2_available
+
 from mvector.utils.audio_utils import load_audio_segment
 from yeaudio.audio import AudioSegment
-from transformers.utils import is_flash_attn_2_available
+
+logger = logging.getLogger(__name__)
+
 # ============================================================
-# 全局配置（已添加详细注释）
+# 常量
 # ============================================================
-TOKEN_LANGUAGE = [
-    "chinese",
-    "japanese",
-    "korean",
-    "zh-cn",
-    "ja-jp",
-    "ko-kr",
-    "zh_cn",
-    "ja_jp",
-    "ko_kr",
-]
+TOKEN_LANGUAGE = frozenset({
+    "chinese", "japanese", "korean",
+    "zh-cn", "ja-jp", "ko-kr",
+    "zh_cn", "ja_jp", "ko_kr",
+})
 
-PHONEME_LANGUAGE_DICT = {
-    "english": "en-us",
-    "en-us": "en-us",
-}
+PHONEME_LANGUAGE_MAP = {"english": "en-us", "en-us": "en-us"}
 
-
-# 采样率：所有音频在处理前会被重采样到该采样率（Hz）
 SAMPLE_RATE = 16_000
-
-# 每帧时长（毫秒），决定特征帧的 hop 长度和 CTC 帧率映射
 FRAME_MS = 10.0
-
-# CTC 模型中的 blank token ID（通常为 0），用于分割静音/填充
 BLANK_ID = 0
-
-# 合并非常短段的阈值（毫秒），小于该时长的段会合并到邻近段
 MERGE_SHORT_MS = 10
 
-# ------- 权重（各特征在最终 S2 评分中的线性权重，随后会归一化） -------
-"""
-S2 惩罚项
-duration: 惩罚音素过短的情况，吞音或吐字不清通常表现为音素被压缩，时长短于正常音素
-bank: 惩罚静音片段，通常为静音片段被误判为音素
-posterior: 惩罚模型对音素的低置信度
-energy: 惩罚模型对音素的能量过低
-entropy: 惩罚音素频谱不集中（模糊、不确定）
-voicing: 惩罚低发声率音素
-zcr: 惩罚频率变化过快的音素
-spectral: 惩罚频谱偏高或偏低的音素
-bandwodth: 谱带宽权重，介于ZCR和SPECTRAL之间
-"""
-# 关键特征加权 (重平衡：清晰度优先)
-W_DURATION = 3.0
-W_BLANK = 3.0
-W_POSTERIOR = 6.0    # 显著提升后验概率权重
-W_ENERGY = 2.0
-# 可选其他特征权重
-W_ENTROPY = 4.0      # 显著提升熵权重（模糊度）
-W_VOICING = 1.0
-W_ZCR = 0.2
-W_SPECTRAL = 0.5
-W_BANDWIDTH = 0.3
 
-# ------ 阈值（用于判断各个特征是否触发“原因”提示） ------
-# 时长短的判定阈值（归一化后判断）
-THRESH_DURATION = 0.7
-# 空白比例阈值（大于认为空白过多）
-THRESH_BLANK = 0.1
-# 后验概率阈值（低于则认为模型置信度不足）
-THRESH_POSTERIOR = 0.5
-# 能量归一化阈值（高于代表能量过低）
-THRESH_ENERGY = 0.4
-# 谱熵阈值（高于认为模糊发音）
-THRESH_ENTROPY = 0.2
-# 发声率阈值（低于认为低发声率）
-THRESH_VOICING = 0.3
-# 基频突变判定阈值（大于认为基频剧烈变化）
-THRESH_PITCH_DROP = 0.5
-# 过零率阈值
-THRESH_ZCR = 0.4
-# 谱带宽阈值（高于认为带宽过窄）
-THRESH_BANDWIDTH = 0.65
+# ============================================================
+# SwallowConfig — 统一配置中心
+# ============================================================
+@dataclass
+class SwallowConfig:
+    """
+    所有权重、阈值集中管理。
+    权重在初始化后自动归一化（总和=1）。
+    """
+    # ── 权重 ──
+    w_duration: float = 3.0
+    w_blank: float = 3.0
+    w_posterior: float = 6.0
+    w_energy: float = 2.0
+    w_entropy: float = 4.0
+    w_voicing: float = 1.0
+    w_zcr: float = 0.2
+    w_spectral: float = 0.5
+    w_bandwidth: float = 0.3
 
-# ---------- 权重归一化（内部逻辑保持不变，但添加注释） ----------
-# 将上面定义的权重按总和归一化，确保它们之和为 1，避免尺度问题
-total = sum(
-    [
-        W_DURATION,
-        W_BLANK,
-        W_POSTERIOR,
-        W_ENERGY,
-        W_ENTROPY,
-        W_VOICING,
-        W_ZCR,
-        W_SPECTRAL,
-        W_BANDWIDTH,
-    ]
-)
-W_DURATION /= total
-W_BLANK /= total
-W_POSTERIOR /= total
-W_ENERGY /= total
-W_ENTROPY /= total
-W_VOICING /= total
-W_ZCR /= total
-W_SPECTRAL /= total
-W_BANDWIDTH /= total
+    # ── 阈值 ──
+    thresh_duration: float = 0.7
+    thresh_blank: float = 0.1
+    thresh_posterior: float = 0.5
+    thresh_energy: float = 0.4
+    thresh_entropy: float = 0.2
+    thresh_voicing: float = 0.3
+    thresh_pitch_drop: float = 0.5
+    thresh_zcr: float = 0.4
+    thresh_bandwidth: float = 0.65
 
-# ===============================
-# 核心检测类
-# ===============================
+    # ── 风险阈值 ──
+    risk_threshold: float = 0.45
+    severe_threshold: float = 0.65
+
+    # ── S1/S2 融合权重 ──
+    alpha_s2: float = 0.2   # S2 声学权重
+    beta_s1: float = 0.8    # S1 对齐权重
+
+    # ── 归一化后权重（自动计算） ──
+    _norm_weights: dict = field(default_factory=dict, init=False, repr=False)
+
+    def __post_init__(self):
+        raw = {
+            "duration": self.w_duration, "blank": self.w_blank,
+            "posterior": self.w_posterior, "energy": self.w_energy,
+            "entropy": self.w_entropy, "voicing": self.w_voicing,
+            "zcr": self.w_zcr, "spectral": self.w_spectral,
+            "bandwidth": self.w_bandwidth,
+        }
+        total = sum(raw.values())
+        self._norm_weights = {k: v / total for k, v in raw.items()}
+
+    @property
+    def weights(self) -> dict:
+        return self._norm_weights
+
+    def risk_level(self, score: float) -> str:
+        if score < self.risk_threshold:
+            return "高风险"
+        if score < self.severe_threshold:
+            return "疑似吞音"
+        return "正常"
+
+
+# ============================================================
+# GlobalFeatures — 全局声学特征容器
+# ============================================================
+class GlobalFeatures(NamedTuple):
+    rms: np.ndarray
+    rms_mean: float
+    zcr: np.ndarray
+    centroid: np.ndarray
+    bandwidth: np.ndarray
+    f0: Optional[np.ndarray]
+
+
+# ============================================================
+# S2Score — S2 评分结果容器
+# ============================================================
+class S2Score(NamedTuple):
+    score: float        # 质量分 0～1，越高越好
+    reasons: list       # 触发原因列表
+    metrics: dict       # 各维度指标详情
+
+
+# ============================================================
+# AcousticFeatureExtractor — 全局音频特征一次性提取
+# ============================================================
+class AcousticFeatureExtractor:
+    """无状态特征提取器，一次性计算音频的全局声学特征。"""
+
+    @staticmethod
+    def extract(wav: np.ndarray) -> GlobalFeatures:
+        hop = int(FRAME_MS / 1000 * SAMPLE_RATE)
+        rms = librosa.feature.rms(y=wav, frame_length=hop, hop_length=hop)[0]
+        zcr = librosa.feature.zero_crossing_rate(y=wav, frame_length=hop, hop_length=hop)[0]
+        n_fft = max(512, hop * 2)
+        centroid = librosa.feature.spectral_centroid(y=wav, sr=SAMPLE_RATE, n_fft=n_fft, hop_length=hop)[0]
+        bandwidth = librosa.feature.spectral_bandwidth(y=wav, sr=SAMPLE_RATE, n_fft=n_fft, hop_length=hop)[0]
+        try:
+            f0 = librosa.yin(y=wav, fmin=50, fmax=500, sr=SAMPLE_RATE, frame_length=2048, hop_length=hop)
+            f0 = np.where(np.isfinite(f0), f0, np.nan)
+        except Exception:
+            f0 = None
+        return GlobalFeatures(rms=rms, rms_mean=float(rms.mean()), zcr=zcr,
+                              centroid=centroid, bandwidth=bandwidth, f0=f0)
+
+
+# ============================================================
+# S2AcousticScorer — 声学特征多维评分
+# ============================================================
+class S2AcousticScorer:
+    """
+    基于帧级概率 + 声学特征计算 S2 惩罚/质量分。
+    S2 = 1 − weighted_penalty，越高越好。
+    """
+
+    def __init__(self, cfg: SwallowConfig):
+        self.cfg = cfg
+        self.w = cfg.weights
+
+    def score(
+        self,
+        pid: int,
+        start: int,
+        end: int,
+        probs_segment: np.ndarray,
+        wav: np.ndarray,
+        durations_ms: list,
+        gf: GlobalFeatures,
+        frame_ms: float = FRAME_MS,
+    ) -> S2Score:
+        avg_dur = np.mean(durations_ms) if durations_ms else frame_ms * 2
+        duration_ms = (end - start) * frame_ms
+
+        # ── 后验概率 ──
+        posterior = float(probs_segment[:, pid].mean()) if pid < probs_segment.shape[1] else 0.0
+        blank_ratio = float((probs_segment[:, BLANK_ID] > 0.6).mean())
+
+        # ── 能量 ──
+        energy = float(gf.rms[start:end].mean()) if start < len(gf.rms) and end <= len(gf.rms) else 0.0
+
+        # ── 归一化特征 ──
+        short_thresh = max(FRAME_MS, avg_dur * 0.5)
+        D_short = _clamp((short_thresh - duration_ms) / short_thresh)
+        posterior_norm = 1 - posterior
+        energy_norm = _clamp((0.95 * gf.rms_mean - energy) / (0.8 * gf.rms_mean + 1e-8))
+
+        # ── 谱熵 ──
+        try:
+            p = np.clip(probs_segment, 1e-12, 1.0)
+            entropy_frames = -np.sum(p * np.log(p), axis=1)
+            max_ent = np.log(probs_segment.shape[1])
+            H_norm = _clamp(float(np.mean(entropy_frames)) / (max_ent + 1e-8))
+        except Exception:
+            H_norm = 0.0
+
+        # ── 发声率 / 基频突变 ──
+        voicing_ratio, pitch_drop = 0.0, 0.0
+        if gf.f0 is not None and start < len(gf.f0):
+            seg_f0 = gf.f0[start:end]
+            voiced = np.isfinite(seg_f0) & (seg_f0 > 0)
+            voicing_ratio = float(np.mean(voiced)) if len(seg_f0) > 0 else 0.0
+            if voicing_ratio > 0:
+                f0_vals = seg_f0[voiced]
+                if len(f0_vals) > 1:
+                    pitch_drop = _clamp(max(0.0, (np.max(f0_vals) - np.min(f0_vals)) / (np.max(f0_vals) + 1e-8)))
+        voicing_norm = 1 - voicing_ratio
+
+        # ── ZCR / 谱质心 / 谱带宽 ──
+        zcr_norm = _clamp(float(np.mean(gf.zcr[start:end]))) if gf.zcr is not None else 0.0
+        centroid_mean = float(np.mean(gf.centroid[start:end])) if gf.centroid is not None else 0.0
+        spectral_norm = _clamp(centroid_mean / (SAMPLE_RATE / 2))
+        bw_mean = float(np.mean(gf.bandwidth[start:end])) if gf.bandwidth is not None else 0.0
+        bandwidth_norm = _clamp(1.0 - bw_mean / (SAMPLE_RATE / 2))
+
+        # ── 线性加权 ──
+        w = self.w
+        S2_linear = (
+            w["duration"] * D_short
+            + w["posterior"] * posterior_norm
+            + w["blank"] * blank_ratio
+            + w["energy"] * energy_norm
+            + w["entropy"] * H_norm
+            + w["voicing"] * voicing_norm
+            + w["zcr"] * zcr_norm
+            + w["spectral"] * spectral_norm
+            + w["bandwidth"] * bandwidth_norm
+        )
+        S2 = float(_clamp(1 - S2_linear))
+
+        metrics = {
+            "duration": float(w["duration"] * D_short),
+            "blank": float(w["blank"] * blank_ratio),
+            "posterior": float(w["posterior"] * posterior_norm),
+            "energy": float(w["energy"] * energy_norm),
+            "entropy": float(w["entropy"] * H_norm),
+            "voicing": float(w["voicing"] * voicing_norm),
+            "zcr": float(w["zcr"] * zcr_norm),
+            "spectral": float(w["spectral"] * spectral_norm),
+            "bandwidth": float(w["bandwidth"] * bandwidth_norm),
+            "linear_score": float(S2_linear),
+            "final_score": float(S2),
+        }
+
+        # ── 原因列表 ──
+        c = self.cfg
+        reasons = []
+        if D_short > c.thresh_duration:
+            reasons.append("音素过短")
+        if posterior < c.thresh_posterior:
+            reasons.append("模型后验率低")
+        if blank_ratio > c.thresh_blank:
+            reasons.append("空白静音过长")
+        if energy_norm > c.thresh_energy:
+            reasons.append("能量低")
+        if H_norm > c.thresh_entropy:
+            reasons.append("模糊发音")
+        if voicing_norm > c.thresh_voicing:
+            reasons.append("低发声率")
+        if pitch_drop > c.thresh_pitch_drop:
+            reasons.append("基频剧烈变化")
+        if zcr_norm > c.thresh_zcr:
+            reasons.append("过零率偏高(频率成分高)")
+        if bandwidth_norm > c.thresh_bandwidth:
+            reasons.append("谱带宽过窄(发音不清晰)")
+
+        return S2Score(score=S2, reasons=reasons, metrics=metrics)
+
+
+# ============================================================
+# S1AlignmentScorer — 强制对齐评分
+# ============================================================
+class S1AlignmentScorer:
+    """
+    有参考文本时的强制对齐评分。
+    优先 Qwen3 ForcedAligner，失败时回退 CTC forced_align。
+    """
+
+    def __init__(
+        self,
+        forced_aligner_model_path: str,
+        device: torch.device,
+        dtype: torch.dtype,
+    ):
+        self._model_path = forced_aligner_model_path
+        self._device = device
+        self._dtype = dtype
+        self._aligner: Optional[Qwen3ForcedAligner] = None
+
+    # ── Qwen3 懒加载 ──
+    def _get_aligner(self) -> Qwen3ForcedAligner:
+        if self._aligner is not None:
+            return self._aligner
+        attn_impl = _select_attention_impl(self._dtype)
+        self._aligner = Qwen3ForcedAligner.from_pretrained(
+            self._model_path,
+            dtype=self._dtype,
+            device_map=self._device,
+            attn_implementation=attn_impl,
+        )
+        logger.info("Qwen3 ForcedAligner loaded: %s", self._model_path)
+        return self._aligner
+
+    # ── Qwen3 对齐 ──
+    def align_qwen3(
+        self, wav: np.ndarray, reference_text: str, language: str
+    ) -> Optional[list[dict]]:
+        """
+        返回 [{text, start, end}, ...] 或 None（失败时）。
+        """
+        try:
+            aligner = self._get_aligner()
+            results = aligner.align(audio=(wav, SAMPLE_RATE), text=reference_text, language=language)
+        except Exception as e:
+            logger.warning("Qwen3 align failed: %s", e)
+            return None
+        return _normalize_qwen_units(results)
+
+    # ── CTC 强制对齐回退 ──
+    @staticmethod
+    def align_ctc_s1(
+        phoneme_results: list,
+        logits: torch.Tensor,
+        reference_text: str,
+        language: str,
+        processor: Wav2Vec2Processor,
+        cfg: SwallowConfig,
+    ) -> bool:
+        """对已有 phoneme_results 补充 CTC S1 评分。返回是否成功。"""
+        try:
+            targets = _text2phoneme_or_token(reference_text, language, processor).to(logits.device)
+            log_probs = torch.log_softmax(logits, dim=-1).unsqueeze(0)
+            alignment, _ = F.forced_align(log_probs, targets, blank=BLANK_ID)
+            alignment = alignment[0]
+            target_ids = targets[0]
+
+            s1_map = {}
+            for pid in target_ids:
+                frames = (alignment == pid).nonzero(as_tuple=True)[0]
+                if len(frames) == 0:
+                    s1_map[int(pid)] = (1.0, "音素缺失")
+                else:
+                    dur = frames[-1] - frames[0] + 1
+                    s1_map[int(pid)] = (0.7 if dur <= 2 else 0.0, "音素模糊" if dur <= 2 else "ok")
+
+            for p in phoneme_results:
+                s1, r1 = s1_map.get(p["pid"], (0.0, "no_ref"))
+                p["S1"] = s1
+                p["S1_percent"] = s1 * 100
+                p["penalty_score"] = float(_clamp(cfg.alpha_s2 * p["S2"] + cfg.beta_s1 * (1 - s1)))
+                if s1 > 0 and r1 not in p["reasons"]:
+                    p["reasons"].append(r1)
+                p["penalty_score_percent"] = p["penalty_score"] * 100
+                p["risk_level"] = cfg.risk_level(p["penalty_score"])
+            return True
+        except Exception as e:
+            logger.warning("CTC S1 alignment failed: %s", e)
+            return False
+
+
+# ============================================================
+# SwallowPredictor — 编排器
+# ============================================================
 class SwallowPredictor:
     """
-    吞音检测器主类，基于 wav2vec2 的 CTC 输出结合多模态特征（能量、谱、基频等）计算每个音素的疑似吞音评分。
-    参数：
-      - use_admm: bool，是否启用可选的 ADMM 优化流程（当前示例中保留接口，未实现特殊流程）
-    主要方法：
-      - forward(wav_path): 读取音频并得到模型 logits
-      - analyze(wav_path, reference_text=None): 对音频进行完整分析并返回句级与音素级结果
-      - ctc_segments(logits): 将连续帧按最大后验 token 切分为段
-      - score_s2(...): 计算改进后的 S2（基于多模态特征的吞音风险分数）
-      - aggregate(phonemes): 聚合音素分数为句级分数
+    吞音检测编排器。
+    - 有参考文本：Qwen3 强制对齐 → S1 + S2 综合评分
+    - 无参考文本：CTC 分段 → 仅 S2 声学评分，token 为空串
     """
 
     def __init__(
@@ -143,87 +381,57 @@ class SwallowPredictor:
         use_gpu=True,
         use_admm=False,
     ):
-        """
-        初始化检测器，加载 processor 与模型到 DEVICE 并设置为推理模式。
-        参数：
-          - use_admm: 是否在后续评分中启用 ADMM 优化（布尔）
-        注意：
-          - 模型加载较慢且占显存，请在初始化时做好资源管理。
-        """
         language = language.lower()
-        model_path = ""
         if language in TOKEN_LANGUAGE:
             model_path = token_model_path
-        elif PHONEME_LANGUAGE_DICT.get(language) is not None:
+        elif PHONEME_LANGUAGE_MAP.get(language) is not None:
             model_path = phoneme_model_path
-            language = PHONEME_LANGUAGE_DICT[language]
+            language = PHONEME_LANGUAGE_MAP[language]
         else:
             raise ValueError(f"不支持的语言: {language}")
 
-        # 推理设备，优先 GPU，否则使用 CPU
+        # ── 设备 ──
         if use_gpu and torch.cuda.is_available():
             self.device = torch.device("cuda:0")
             self.dtype = torch.bfloat16
         else:
             self.device = torch.device("cpu")
             self.dtype = torch.float32
-        # 全句级风险阈值（用于最终句子级别风险分层）
-        self.risk_threshold = risk_threshold
-        self.severe_threshold = severe_threshold
-        # 加载 processor 与模型
+
+        # ── 配置 ──
+        self.cfg = SwallowConfig(risk_threshold=risk_threshold, severe_threshold=severe_threshold)
+        self.language = language
+
+        # ── wav2vec2 模型 ──
         if torch.cuda.is_available():
             torch.backends.cudnn.benchmark = True
-        
         self.processor = Wav2Vec2Processor.from_pretrained(model_path)
-        
-        # 优先加速：Flash Attention 2 > SDPA
-        base_attn_impl = select_attention_impl(self.dtype)
+        attn_impl = _select_attention_impl(self.dtype)
         self.model = Wav2Vec2ForCTC.from_pretrained(
             model_path,
-            attn_implementation=base_attn_impl if torch.cuda.is_available() else None
+            attn_implementation=attn_impl if torch.cuda.is_available() else None,
         ).to(self.device)
-
         self.model.eval()
-        self.language = language
-        self.forced_aligner_model_path = forced_aligner_model_path
-        self.use_forced_aligner = use_forced_aligner
-        self.forced_aligner = None
-        # TODO 后续扩展s2方案无参考文本的 admm惩罚项优化
-        self.use_admm = use_admm
 
-    # ---------- forward ----------
+        # ── 子模块 ──
+        self._extractor = AcousticFeatureExtractor()
+        self._s2_scorer = S2AcousticScorer(self.cfg)
+        self._s1_scorer = (
+            S1AlignmentScorer(forced_aligner_model_path, self.device, self.dtype)
+            if use_forced_aligner
+            else None
+        )
+
+    # ── Forward ──
     def forward(self, audio_segment: AudioSegment) -> tuple:
-        """
-        前向推理接口：从文件加载音频并通过模型得到 logits（不进行 softmax）。
-        参数：
-          - audio_segment: audio 文件路径（被 librosa 加载并重采样到 SAMPLE_RATE）
-        返回：
-          - wav: numpy 一维数组（原始音频波形）
-          - logits: torch.Tensor，shape (T, C) 的模型输出 logits（未归一化）
-        注意：
-          - 返回的 logits 仍在 DEVICE（cuda/CPU），调用方在分析时会在 CPU 上计算进一步指标。
-        """
-        # 转成 np.float32
         wav = audio_segment.samples.astype(np.float32)
         inputs = self.processor(wav, sampling_rate=SAMPLE_RATE, return_tensors="pt")
         with torch.inference_mode():
             logits = self.model(inputs.input_values.to(self.device)).logits
         return wav, logits[0]
 
-    # ---------- CTC segmentation ----------
-    def ctc_segments(self, logits: torch.Tensor):
-        """
-        基于 logits 的逐帧最大后验 token 划分连续段，并合并过短段。
-        参数：
-          - logits: torch.Tensor 或 numpy array，模型在每帧的 logits
-        返回：
-          - segments: 列表，每项为 (pid, start_frame, end_frame, probs_segment)
-            - pid: token id（int）
-            - start_frame, end_frame: 帧索引（半开区间 end）
-            - probs_segment: numpy array，段内每帧 softmax 概率
-        说明：
-          - 合并时会将小于 MERGE_SHORT_MS 的段与前一段合并，减少短时抖动。
-        """
+    # ── CTC 分段 ──
+    def _ctc_segments(self, logits: torch.Tensor) -> list:
         log_probs = torch.log_softmax(logits, dim=-1).cpu()
         probs = log_probs.exp().numpy()
         ids = np.argmax(probs, axis=-1)
@@ -236,716 +444,251 @@ class SwallowPredictor:
 
         # 合并过短段
         merged = []
-        for pid, start, end, pseg in segments:
-            duration_ms = (end - start) * FRAME_MS
-            if merged and duration_ms < MERGE_SHORT_MS:
-                last_pid, last_start, last_end, last_pseg = merged.pop()
-                merged.append(
-                    (
-                        last_pid,
-                        last_start,
-                        end,
-                        np.concatenate([last_pseg, pseg], axis=0),
-                    )
-                )
+        for pid, s, e, pseg in segments:
+            dur_ms = (e - s) * FRAME_MS
+            if merged and dur_ms < MERGE_SHORT_MS:
+                lp, ls, le, lpseg = merged.pop()
+                merged.append((lp, ls, e, np.concatenate([lpseg, pseg], axis=0)))
             else:
-                merged.append((pid, start, end, pseg))
+                merged.append((pid, s, e, pseg))
         return merged
 
-    # ---------- 提取全局音频特征 ----------
-    def _extract_global_features(self, wav: np.ndarray) -> dict:
-        """
-        一次性计算音频的所有昂贵全局特征。
-        """
-        hop_length = int(FRAME_MS / 1000 * SAMPLE_RATE)
-        rms = librosa.feature.rms(
-            y=wav, frame_length=hop_length, hop_length=hop_length
-        )[0]
-        rms_mean = rms.mean()
-        zcr = librosa.feature.zero_crossing_rate(
-            y=wav, frame_length=hop_length, hop_length=hop_length
-        )[0]
-        n_fft = max(512, hop_length * 2)
-        centroid = librosa.feature.spectral_centroid(
-            y=wav, sr=SAMPLE_RATE, n_fft=n_fft, hop_length=hop_length
-        )[0]
-        bandwidth = librosa.feature.spectral_bandwidth(
-            y=wav, sr=SAMPLE_RATE, n_fft=n_fft, hop_length=hop_length
-        )[0]
-        try:
-            f0 = librosa.yin(
-                y=wav,
-                fmin=50,
-                fmax=500,
-                sr=SAMPLE_RATE,
-                frame_length=2048,
-                hop_length=hop_length,
-            )
-            f0 = np.where(np.isfinite(f0), f0, np.nan)
-        except Exception:
-            f0 = None
-
-        return {
-            "rms": rms,
-            "rms_mean": rms_mean,
-            "zcr": zcr,
-            "centroid": centroid,
-            "bandwidth": bandwidth,
-            "f0": f0,
-        }
-
-    # ---------- 改进 S2 评分 ----------
-    def score_s2(
+    # ── 构造统一的 phoneme 结果字典 ──
+    def _make_phoneme(
         self,
         pid: int,
-        start: float,
-        end: float,
-        probs_segment: np.ndarray,
-        wav: np.ndarray,
-        durations: list,
-        global_features: dict = None,
-    ) -> tuple:
-        """
-        计算改进的 S2（分段吞音风险评分），结合时长、后验、空白率、能量、谱熵、发声率、ZCR、谱质心等特征。
-        参数：
-        - pid, start, end: 段信息（token id, 帧起, 帧止）
-        - probs_segment: 段内每帧模型概率分布（numpy array，shape (L, C)）
-        - wav: 音频数据
-        - durations: 非空白音素时长列表
-        - global_features: 预计算的全局音频特征字典
-        - frame_ms: 实际的帧时长（毫秒），默认为 20.0 (Wav2Vec2 常用)
-        返回：
-        - S2: 归一化后的分数（0-1，值越大表示越可能吞音）
-        - reasons: 原因列表（字符串），对应触发的特征异常项
-        - metrics: 各项指标的字典，包含归一化值和原始值
-        """
-        if global_features is None:
-            # Fallback if not provided, though it's recommended to pre-calculate
-            global_features = self._extract_global_features(wav)
-
-        # 动态获取帧时长
-        f_ms = durations.get("frame_ms", FRAME_MS) if isinstance(durations, dict) else FRAME_MS
-
-        rms = global_features["rms"]
-        rms_mean = global_features["rms_mean"]
-        zcr = global_features["zcr"]
-        centroid = global_features["centroid"]
-        bandwidth = global_features["bandwidth"]
-        f0 = global_features["f0"]
-
-        avg_duration_ms = np.mean(durations) if isinstance(durations, list) and durations else f_ms * 2
-
-        duration_ms = (end - start) * f_ms
-        posterior = (
-            float(probs_segment[:, pid].mean()) if pid < probs_segment.shape[1] else 0.0
-        )
-        blank_ratio = float((probs_segment[:, BLANK_ID] > 0.6).mean())
-        energy = (
-            float(rms[start:end].mean())
-            if start < len(rms) and end <= len(rms)
-            else 0.0
-        )
-
-        # 归一化特征
-        short_threshold = max(FRAME_MS, avg_duration_ms * 0.5)
-        D_short = clamp((short_threshold - duration_ms) / short_threshold)
-        posterior_norm = 1 - posterior
-        energy_norm = clamp((0.95 * rms_mean - energy) / (0.8 * rms_mean + 1e-8))
-        try:
-            p = np.clip(probs_segment, 1e-12, 1.0)
-            entropy_frames = -np.sum(p * np.log(p), axis=1)
-            posterior_entropy = float(np.mean(entropy_frames))
-            max_ent = np.log(probs_segment.shape[1])
-            H_norm = clamp(posterior_entropy / (max_ent + 1e-8))
-        except Exception:
-            H_norm = 0.0
-            posterior_entropy = 0.0
-
-        # 发声率和基频
-        voicing_ratio, pitch_drop = 0.0, 0.0
-        if f0 is not None and start < len(f0):
-            seg_f0 = f0[start:end]
-            voiced = np.isfinite(seg_f0) & (seg_f0 > 0)
-            voicing_ratio = float(np.mean(voiced)) if len(seg_f0) > 0 else 0.0
-            if voicing_ratio > 0:
-                f0_vals = seg_f0[voiced]
-                if len(f0_vals) > 1:
-                    pitch_drop = clamp(
-                        max(
-                            0.0,
-                            (np.max(f0_vals) - np.min(f0_vals))
-                            / (np.max(f0_vals) + 1e-8),
-                        )
-                    )
-        voicing_norm = 1 - voicing_ratio
-
-        # ZCR & 谱质心
-        zcr_mean = float(np.mean(zcr[start:end])) if zcr is not None else 0.0
-        zcr_norm = clamp(zcr_mean)
-        centroid_mean = (
-            float(np.mean(centroid[start:end])) if centroid is not None else 0.0
-        )
-        spectral_norm = clamp(centroid_mean / (SAMPLE_RATE / 2))
-
-        # 谱带宽：带宽过窄可能表示发音不清晰
-        bandwidth_mean = (
-            float(np.mean(bandwidth[start:end])) if bandwidth is not None else 0.0
-        )
-        bandwidth_norm = clamp(1.0 - bandwidth_mean / (SAMPLE_RATE / 2))
-
-        # ---------- 分段非线性组合 ----------
-        S2_linear = (
-            W_DURATION * D_short
-            + W_POSTERIOR * posterior_norm
-            + W_BLANK * blank_ratio
-            + W_ENERGY * energy_norm
-            + W_ENTROPY * H_norm
-            + W_VOICING * voicing_norm
-            + W_ZCR * zcr_norm
-            + W_SPECTRAL * spectral_norm
-            + W_BANDWIDTH * bandwidth_norm
-        )
-
-        # S2 质量分 = 1 - 惩罚分（单调、可解释）
-        S2 = float(clamp(1 - S2_linear))
-
-        # ---------- 指标详情字典 ----------
-        metrics = {
-            "duration": float(W_DURATION * D_short),  # 时长惩罚：音素过短的程度
-            "blank": float(W_BLANK * blank_ratio),  # 空白惩罚：静音片段被误判为音素
-            "posterior": float(
-                W_POSTERIOR * posterior_norm
-            ),  # 后验惩罚：模型对音素的置信度不足
-            "energy": float(W_ENERGY * energy_norm),  # 能量惩罚：音素能量过低
-            "entropy": float(W_ENTROPY * H_norm),  # 熵惩罚：频谱不集中，发音模糊
-            "voicing": float(W_VOICING * voicing_norm),  # 发声惩罚：有声部分占比过低
-            "zcr": float(W_ZCR * zcr_norm),  # 过零率惩罚：频率变化过快
-            "spectral": float(
-                W_SPECTRAL * spectral_norm
-            ),  # 谱质心惩罚：频谱重心位置异常
-            "bandwidth": float(
-                W_BANDWIDTH * bandwidth_norm
-            ),  # 谱带宽惩罚：频谱带宽过窄
-            "linear_score": float(S2_linear),  # 线性加权惩罚总分（0~1，越高越差）
-            "final_score": float(S2),  # S2质量分（1-linear_score，越高越好）
+        token: str,
+        start_sec: float,
+        end_sec: float,
+        s2: S2Score,
+        s1: float = 0.0,
+        s1_reason: str = "ok",
+    ) -> dict:
+        cfg = self.cfg
+        penalty = float(_clamp(cfg.alpha_s2 * s2.score + cfg.beta_s1 * (1 - s1)))
+        reasons = list(s2.reasons)
+        if s1 > 0 and s1_reason not in reasons:
+            reasons.append(s1_reason)
+        py = _token_to_pinyin(token) if token else ""
+        return {
+            "pid": int(pid),
+            "token": token,
+            "pinyin": py,
+            "start": float(start_sec),
+            "end": float(end_sec),
+            "S2": float(s2.score),
+            "S2_percent": float(s2.score * 100),
+            "S1": float(s1),
+            "S1_percent": float(s1 * 100),
+            "metrics": s2.metrics,
+            "reasons": reasons,
+            "penalty_score": float(penalty),
+            "penalty_score_percent": float(penalty * 100),
+            "risk_level": cfg.risk_level(penalty),
         }
 
-        # ---------- 原因列表 ----------
-        reasons = []
-        if D_short > THRESH_DURATION:
-            reasons.append("音素过短")
-        if posterior < THRESH_POSTERIOR:
-            reasons.append("模型后验率低")
-        if blank_ratio > THRESH_BLANK:
-            reasons.append("空白静音过长")
-        if energy_norm > THRESH_ENERGY:
-            reasons.append("能量低")
-        if H_norm > THRESH_ENTROPY:
-            reasons.append("模糊发音")
-        if voicing_norm > THRESH_VOICING:
-            reasons.append("低发声率")
-        if pitch_drop > THRESH_PITCH_DROP:
-            reasons.append("基频剧烈变化")
-        if zcr_norm > THRESH_ZCR:
-            reasons.append("过零率偏高(频率成分高)")
-        if bandwidth_norm > THRESH_BANDWIDTH:
-            reasons.append("谱带宽过窄(发音不清晰)")
-
-        return S2, reasons, metrics
-
-    def _get_forced_aligner(self):
-        if not self.use_forced_aligner:
-            return None
-        if self.forced_aligner is not None:
-            return self.forced_aligner
-            
-        # 优先加速：Flash Attention 2 > SDPA
-        attn_impl = select_attention_impl(self.dtype)
-
-        self.forced_aligner = Qwen3ForcedAligner.from_pretrained(
-            self.forced_aligner_model_path,
-            torch_dtype=self.dtype,
-            device_map=self.device,
-            attn_implementation=attn_impl,
-        )
-        
-        # 进一步加速：编译 thinker 模块 (仅在推理模式下)
-        # 注意：在 Windows 环境下经常因为缺少 cl.exe 失败，暂时禁用以保证稳定性
-        # if hasattr(torch, "compile") and torch.cuda.is_available():
-        #     try:
-        #         self.forced_aligner.model.thinker = torch.compile(
-        #             self.forced_aligner.model.thinker,
-        #             mode="reduce-overhead"
-        #         )
-        #     except Exception as e:
-        #         print(f"Warning: torch.compile failed: {e}. Falling back to eager mode.")
-
-        return self.forced_aligner
-
-    def _normalize_qwen_units(self, results):
-        if not isinstance(results, (list, tuple)) or len(results) == 0:
-            return []
-        units = results[0]
-        normalized = []
-        for u in units:
-            if u is None:
-                continue
-            if isinstance(u, dict):
-                text = u.get("text")
-                start_time = u.get("start_time", u.get("start"))
-                end_time = u.get("end_time", u.get("end"))
-            else:
-                text = getattr(u, "text", None)
-                start_time = getattr(u, "start_time", None)
-                end_time = getattr(u, "end_time", None)
-            if text is None:
-                continue
-            try:
-                start_time = float(start_time)
-                end_time = float(end_time)
-            except (TypeError, ValueError):
-                continue
-            # 允许零时长 unit（快速发音），给予最小 10ms 时长
-            if end_time < start_time:
-                continue
-            if end_time == start_time:
-                end_time = start_time + 0.01
-            normalized.append({"text": text, "start": start_time, "end": end_time})
-        return normalized
-
-    def _build_phonemes_from_qwen3(
-        self,
-        wav: np.ndarray,
-        logits: torch.Tensor,
-        reference_text: str,
-    ):
-        """
-        以 Qwen3 强制对齐结果为骨架，直接构建 phoneme_results。
-        每个对齐 unit 对应一个 phoneme 条目，避免 CTC 分段数 ≠ 对齐数的映射问题。
-        返回 phoneme_results 列表，失败时返回 None。
-        """
-        aligner = self._get_forced_aligner()
-        if aligner is None:
-            return None
-        try:
-            results = aligner.align(
-                audio=(wav, SAMPLE_RATE),
-                text=reference_text,
-                language=self.language,
-            )
-        except Exception as e:
-            print(f"Qwen3 align failed: {e}")
+    # ── 有参考文本：Qwen3 对齐路径 ──
+    def _build_from_qwen3(self, wav: np.ndarray, logits: torch.Tensor, reference_text: str) -> Optional[list]:
+        if self._s1_scorer is None:
             return None
 
-        units = self._normalize_qwen_units(results)
+        units = self._s1_scorer.align_qwen3(wav, reference_text, self.language)
         if not units:
             return None
 
-        # ---------- 准备音频特征和 CTC 概率矩阵 ----------
-        global_features = self._extract_global_features(wav)
-        log_probs = torch.log_softmax(logits, dim=-1).cpu()
-        probs = log_probs.exp().numpy()  # shape (T, C)
+        gf = self._extractor.extract(wav)
+        probs = torch.log_softmax(logits, dim=-1).cpu().exp().numpy()
         total_frames = probs.shape[0]
-        # 准备实际帧时长映射 (重要：Wav2Vec2 概率矩阵与时间的对应关系)
         real_frame_ms = (len(wav) / SAMPLE_RATE * 1000.0) / total_frames
-        
-        # 对齐 unit 时长（秒）→ 帧级时长（毫秒），用于 S2 的 durations 参数
-        durations_ms = [
-            (u["end"] - u["start"]) * 1000.0 for u in units
-        ]
-        # 对齐 unit 时长中位数（秒），用于 S1 比例计算
+
+        durations_ms = [(u["end"] - u["start"]) * 1000.0 for u in units]
         durations_sec = [u["end"] - u["start"] for u in units]
-        base_duration = max(0.03, float(np.median(durations_sec))) if durations_sec else 0.08
+        base_dur = max(0.03, float(np.median(durations_sec))) if durations_sec else 0.08
 
-        alpha = 0.2   # S2 权重（声学占比）
-        beta = 0.8    # S1 权重（对齐占比）
-
-        phoneme_results = []
+        results = []
         for u in units:
-            text = u["text"]
-            u_start_sec = u["start"]
-            u_end_sec = u["end"]
+            fs = max(0, min(int(u["start"] * 1000.0 / real_frame_ms), total_frames - 1))
+            fe = max(fs + 1, min(int(u["end"] * 1000.0 / real_frame_ms), total_frames))
+            pseg = probs[fs:fe]
+            if pseg.shape[0] == 0:
+                pseg = probs[fs:fs + 1]
 
-            # 时间（秒）→ 帧索引 (精确映射)
-            frame_start = int(u_start_sec * 1000.0 / real_frame_ms)
-            frame_end = int(u_end_sec * 1000.0 / real_frame_ms)
-            frame_start = max(0, min(frame_start, total_frames - 1))
-            frame_end = max(frame_start + 1, min(frame_end, total_frames))
+            mean_p = pseg.mean(axis=0)
+            mean_p[BLANK_ID] = 0.0
+            pid = int(np.argmax(mean_p))
 
-            probs_segment = probs[frame_start:frame_end]
-            if probs_segment.shape[0] == 0:
-                probs_segment = probs[frame_start:frame_start + 1]
+            s2 = self._s2_scorer.score(pid, fs, fe, pseg, wav, durations_ms, gf)
 
-            # 找到该帧段内后验最大的非 blank token 作为 pid
-            mean_probs = probs_segment.mean(axis=0)
-            mean_probs[BLANK_ID] = 0.0
-            pid = int(np.argmax(mean_probs))
+            # S1：基于对齐时长比例
+            unit_dur = max(1e-4, u["end"] - u["start"])
+            ratio = unit_dur / (base_dur + 1e-8)
+            s1 = float(_clamp((1.0 - ratio) * 0.7, 0.0, 0.7)) if ratio < 1.0 else 0.0
+            s1_reason = "音素模糊" if s1 > 0 else "ok"
 
-            # S2 声学评分
-            S2, reasons, metrics = self.score_s2(
-                pid, frame_start, frame_end, probs_segment, wav, durations_ms, global_features
-            )
+            results.append(self._make_phoneme(pid, u["text"], u["start"], u["end"], s2, s1, s1_reason))
 
-            # S1 对齐评分（基于 duration ratio）
-            unit_duration = max(1e-4, u_end_sec - u_start_sec)
-            ratio = unit_duration / (base_duration + 1e-8)
-            s1 = float(clamp((1.0 - ratio) * 0.7, 0.0, 0.7)) if ratio < 1.0 else 0.0
-            r1 = "音素模糊" if s1 > 0 else "ok"
+        return results
 
-            # 综合质量分：S2 为质量分（高=好），(1-s1) 将对齐惩罚转为质量分
-            # 对齐权重(0.8) >> 声学权重(0.2)，对齐良好时综合得分高
-            penalty_score = float(clamp(alpha * S2 + beta * (1 - s1)))
-            if s1 > 0 and r1 not in reasons:
-                reasons.append(r1)
-
-            py = token_to_pinyin(text)
-            phoneme_results.append(
-                {
-                    "pid": pid,
-                    "token": text,
-                    "pinyin": py,
-                    "start": u_start_sec,
-                    "end": u_end_sec,
-                    "S2": S2,
-                    "S2_percent": S2 * 100,
-                    "S1": s1,
-                    "S1_percent": s1 * 100,
-                    "metrics": metrics,
-                    "reasons": reasons,
-                    "penalty_score": penalty_score,
-                    "penalty_score_percent": penalty_score * 100,
-                    "risk_level": (
-                        "高风险"
-                        if penalty_score < self.risk_threshold
-                        else "疑似吞音" if penalty_score < self.severe_threshold else "正常"
-                    ),
-                }
-            )
-        return phoneme_results
-
-    def _apply_ctc_s1(
-        self, phoneme_results: list, logits: torch.Tensor, reference_text: str
-    ) -> bool:
-        try:
-            targets = text2phoneme_or_token(
-                reference_text, self.language, self.processor
-            ).to(logits.device)
-
-            # log_probs: (1, T, C)
-            log_probs = torch.log_softmax(logits, dim=-1).unsqueeze(0)
-
-            # CTC 强制对齐
-            alignment, _ = F.forced_align(log_probs, targets, blank=BLANK_ID)
-
-            alignment = alignment[0]  # (T,)
-            target_ids = targets[0]  # (L,)
-
-            s1_map = {}
-            for pid in target_ids:
-                frames = (alignment == pid).nonzero(as_tuple=True)[0]
-                if len(frames) == 0:
-                    s1_map[int(pid)] = (1.0, "音素缺失")
-                else:
-                    duration = frames[-1] - frames[0] + 1
-                    s1_map[int(pid)] = (
-                        0.7 if duration <= 2 else 0.0,
-                        "音素模糊" if duration <= 2 else "ok",
-                    )
-
-            alpha = 0.2  # S2 权重（声学占比）
-            beta = 0.8  # S1 权重（对齐占比）
-            for p in phoneme_results:
-                s1, r1 = s1_map.get(p["pid"], (0.0, "no_ref"))
-                p["S1"] = s1
-                p["S1_percent"] = s1 * 100
-
-                # 综合质量分：与 Qwen3 路径一致（高=好）
-                p["penalty_score"] = float(clamp(alpha * p["S2"] + beta * (1 - s1)))
-
-                if s1 > 0 and r1 not in p["reasons"]:
-                    p["reasons"].append(r1)
-                p["penalty_score_percent"] = p["penalty_score"] * 100
-                p["risk_level"] = (
-                    "高风险"
-                    if p["penalty_score"] < self.risk_threshold
-                    else "疑似吞音" if p["penalty_score"] < self.severe_threshold else "正常"
-                )
-        except Exception:
-            return False
-        return True
-
-    def _build_phonemes_from_ctc(
-        self,
-        segments: list,
-        wav: np.ndarray,
-        logits: torch.Tensor,
-        reference_text: str,
-    ) -> list:
-        """
-        基于 CTC 分段构建 phoneme_results（无参考文本或 Qwen3 回退时使用）。
-        增加 Mumble Detection：捕捉有能量的 Blank 片段。
-        """
-        # 准备实际帧时长映射
+    # ── 无参考文本 / 回退：CTC 分段路径 ──
+    def _build_from_ctc(self, segments: list, wav: np.ndarray, logits: torch.Tensor, reference_text: str) -> list:
         total_frames = logits.shape[0]
         real_frame_ms = (len(wav) / SAMPLE_RATE * 1000.0) / total_frames
-        
-        durations = [
-            (end - start) * real_frame_ms
-            for pid, start, end, _ in segments
-            if pid != BLANK_ID
-        ]
-        
-        # 为了计算 Blank 能量，需要先算 RMS
-        global_features = self._extract_global_features(wav)
-        rms = global_features["rms"]
-        rms_mean = global_features["rms_mean"]
+        gf = self._extractor.extract(wav)
 
-        phoneme_results = []
-        for pid, start, end, probs_segment in segments:
-            duration_ms = (end - start) * FRAME_MS
-            
-            # --- Mumble Detection (针对无参考文本模式下的模糊发音捕获) ---
+        durations_ms = [
+            (end - start) * real_frame_ms
+            for pid, start, end, _ in segments if pid != BLANK_ID
+        ]
+
+        results = []
+        for pid, start, end, pseg in segments:
+            # Mumble detection：高能量的 Blank 段
             is_mumble = False
             if pid == BLANK_ID:
-                # 如果 Blank 段很长 (>50ms) 且能量超过整体均值的一半，认为是模糊发音
-                seg_energy = float(rms[start:end].mean()) if start < len(rms) else 0.0
-                if duration_ms > 50 and seg_energy > 0.5 * rms_mean:
+                dur_ms = (end - start) * FRAME_MS
+                seg_energy = float(gf.rms[start:end].mean()) if start < len(gf.rms) else 0.0
+                if dur_ms > 50 and seg_energy > 0.5 * gf.rms_mean:
                     is_mumble = True
                 else:
                     continue
 
-            S2, reasons, metrics = self.score_s2(
-                pid, start, end, probs_segment, wav, durations, global_features
-            )
-            
-            # 如果是 Mumble，强制给一个较低的 S2 质量分
+            s2 = self._s2_scorer.score(pid, start, end, pseg, wav, durations_ms, gf)
+
             if is_mumble:
-                S2 = min(S2, 0.4)
-                if "模糊发音(Mumble)" not in reasons:
-                    reasons.append("模糊发音(Mumble)")
+                s2 = S2Score(
+                    score=min(s2.score, 0.4),
+                    reasons=s2.reasons + (["模糊发音(Mumble)"] if "模糊发音(Mumble)" not in s2.reasons else []),
+                    metrics=s2.metrics,
+                )
 
-            token = "[MUMBLE]" if is_mumble else self.processor.tokenizer._convert_id_to_token(pid)
-            py = token_to_pinyin(token)
-            
-            # 在 CTC 模式下，penalty_score 初始由 S2 决定
-            penalty_score = S2 
-            
-            phoneme_results.append(
-                {
-                    "pid": int(pid),
-                    "token": token,
-                    "pinyin": py,
-                    "start": start * real_frame_ms / 1000,
-                    "end": end * real_frame_ms / 1000,
-                    "S2": S2,
-                    "S2_percent": S2 * 100,
-                    "metrics": metrics,
-                    "reasons": reasons,
-                    "penalty_score": penalty_score,
-                    "penalty_score_percent": penalty_score * 100,
-                    "risk_level": (
-                        "高风险"
-                        if penalty_score < self.risk_threshold
-                        else "疑似吞音" if penalty_score < self.severe_threshold else "正常"
-                    ),
-                }
-            )
-        # 无参考文本时仅有 S2；有参考文本但 Qwen3 失败时，回退到 CTC S1
-        if reference_text:
-            self._apply_ctc_s1(phoneme_results, logits, reference_text)
-        return phoneme_results
+            # 无参考文本：token 为空串，不给前端转写
+            if reference_text:
+                token = "[MUMBLE]" if is_mumble else self.processor.tokenizer._convert_id_to_token(pid)
+            else:
+                token = ""
 
-    # ---------- 分析入口 ----------
-    def analyze(self, audio_segment: AudioSegment, reference_text: str) -> dict:
+            start_sec = start * real_frame_ms / 1000
+            end_sec = end * real_frame_ms / 1000
+            results.append(self._make_phoneme(pid, token, start_sec, end_sec, s2))
+
+        # 有参考文本但 Qwen3 失败的回退：补充 CTC S1
+        if reference_text and self._s1_scorer is not None:
+            S1AlignmentScorer.align_ctc_s1(results, logits, reference_text, self.language, self.processor, self.cfg)
+
+        return results
+
+    # ── 主分析入口 ──
+    def analyze(self, audio_segment: AudioSegment, reference_text: str = None) -> dict:
         """
-        主分析入口：对给定音频执行完整流程并返回结构化结果。
-        - 有参考文本且语言支持时，优先以 Qwen3 强制对齐为骨架构建结果
-        - 否则回退到 CTC 分段
-        CTC 分段数(N) ≠ Qwen3 对齐数(M)，用 overlap 匹配导致多对一重复和覆盖缺失。
-        方案：有参考文本时，直接以 Qwen3 对齐结果为骨架构建 phoneme_results（每个字一个条目），将 unit 时间边界映射回帧索引计算 S2 声学分数，不再依赖 CTC 分段。CTC 分段仅作为无参考文本或 Qwen3 失败时的 fallback。
+        对给定音频执行完整吞音检测流程。
+        - 有参考文本：优先 Qwen3 强制对齐构建结果
+        - 无参考文本：CTC 分段 + 仅 S2 评分，token 为空串
         """
         audio_segment = load_audio_segment(audio_segment, SAMPLE_RATE)
         wav, logits = self.forward(audio_segment)
 
         phoneme_results = None
-        # ---------- 优先使用 Qwen3 对齐构建（每字一条，无重复/缺失） ----------
+
+        # ── 有参考文本：优先 Qwen3 ──
         if reference_text and self.language in TOKEN_LANGUAGE:
-            print(f"Path selected: Qwen3 Forced Aligner (lang={self.language})")
-            phoneme_results = self._build_phonemes_from_qwen3(
-                wav, logits, reference_text
-            )
-        # ---------- 回退：CTC 分段 ----------
+            logger.info("Path: Qwen3 Forced Aligner (lang=%s)", self.language)
+            phoneme_results = self._build_from_qwen3(wav, logits, reference_text)
+
+        # ── 回退 / 无参考文本：CTC ──
         if phoneme_results is None:
             if reference_text and self.language in TOKEN_LANGUAGE:
-                print("Warning: Qwen3 path failed, falling back to CTC segmentation path.")
+                logger.warning("Qwen3 failed, falling back to CTC segmentation")
             elif reference_text:
-                print(f"Info: Language '{self.language}' not supported by Qwen3 aligner path, using CTC path.")
+                logger.info("Language '%s' not supported by Qwen3, using CTC path", self.language)
             else:
-                print("Path selected: CTC segmentation (no reference text)")
-            
-            segments = self.ctc_segments(logits)
-            phoneme_results = self._build_phonemes_from_ctc(
-                segments, wav, logits, reference_text
-            )
+                logger.info("No reference text, using CTC segmentation (S2 only)")
+            segments = self._ctc_segments(logits)
+            phoneme_results = self._build_from_ctc(segments, wav, logits, reference_text)
 
-        return self.aggregate(phoneme_results)
+        return self._aggregate(phoneme_results)
 
-    # ---------- 聚合句级评分 ----------
-    def aggregate(self, phonemes) -> dict:
-        """
-        将音素级 final 分数聚合为句级评分与风险等级。
-        参数：
-          - phonemes: 音素结果列表，每项包含 'final' 键（0-1）
-        返回：
-          - dict 包含 final_score（0-100）、sentence_risk_level、phonemes（原列表）
-        聚合策略：
-          - 结合 10 百分位分数与平均分进行加权聚合，确保单个严重异常词能有效拉低总分。
-        """
+    # ── 聚合句级评分 ──
+    def _aggregate(self, phonemes: list) -> dict:
         scores = np.array([p["penalty_score"] for p in phonemes])
-        # 聚合：整体水平（均值）+ 最差表现（第10百分位），兼顾整体与极端
         mean_score = float(np.mean(scores))
-        percentile10 = float(np.percentile(scores, 10))
-        final_score = float(clamp(0.4 * percentile10 + 0.6 * mean_score, 0, 1))
-
-        risk_level = (
-            "高风险"
-            if final_score < self.risk_threshold
-            else "疑似吞音" if final_score < self.severe_threshold else "正常"
-        )
+        p10 = float(np.percentile(scores, 10))
+        final = float(_clamp(0.4 * p10 + 0.6 * mean_score, 0, 1))
         return {
-            "final_score": final_score * 100,
-            "sentence_risk_level": risk_level,
+            "final_score": final * 100,
+            "sentence_risk_level": self.cfg.risk_level(final),
             "phonemes": phonemes,
         }
 
 
-# ===============================
+# ============================================================
 # 工具函数
-# ===============================
-def clamp(x, min_val=0.0, max_val=1.0) -> np.ndarray:
-    """限制输出在 [0,1] 范围内"""
+# ============================================================
+def _clamp(x, min_val=0.0, max_val=1.0):
     return np.clip(x, min_val, max_val)
 
 
-def nonlinear_map(
-    S2_linear: float, alpha1=5.0, alpha2=5.0, threshold=0.5
-) -> np.ndarray:
-    """
-    分段非线性映射优化版（严重吞音指数下降版）
-
-    参数：
-        S2_linear: 归一化线性分数（0~1）
-        alpha1: 低分段斜率，轻微异常放大
-        alpha2: 高分段斜率，严重异常压低
-        threshold: 分段切换点，建议0.5左右
-    返回：
-        S2_nonlinear: 非线性映射后的分数，范围[0,1]
-    """
-    S2_linear = np.array(S2_linear)
-
-    # Sigmoid平滑函数
-    def sigmoid(x):
-        return 1 / (1 + np.exp(-x))
-
-    # 低分段映射: 轻微异常拉高
-    low_map = 1 - np.exp(-alpha1 * S2_linear)
-
-    # 高分段映射: 严重异常指数下降
-    # 注意这里使用衰减: exp(-alpha2 * (x - threshold)) → 越严重越低
-    high_map = np.exp(-alpha2 * (S2_linear - threshold))
-
-    # 平滑过渡
-    smooth_factor = sigmoid(12 * (S2_linear - threshold))  # 越大过渡越陡峭
-    # tanh 判别门控（区分度核心）
-    # gate = 0.5 * (1 + np.tanh(k * (S2_linear - threshold)))
-    S2_nonlinear = low_map * (1 - smooth_factor) + high_map * smooth_factor
-
-    # 限制在 [0,1]
-    return clamp(S2_nonlinear)
-
-
-def token_to_pinyin(token: str) -> str:
-    """
-    将模型输出的单个 token（通常为一个音素或字符）转换为带声调的拼音字符串。
-    参数：
-      - token: 模型 tokenizer 的单个 token
-    返回：
-      - 对应拼音（若无法转换则返回原 token）
-    用途：
-      - 在结果展示中给出更易理解的拼音注释。
-    """
+def _token_to_pinyin(token: str) -> str:
     py = pinyin(token, style=Style.TONE3, strict=False)
     return py[0][0] if py else token
 
 
-def text2phoneme_or_token(
-    reference_text: str, language: str, processor
-) -> torch.Tensor:
-    """
-    参数：
-      - reference_text: 可以转音素语言的参考文本
-    返回：
-      - 返回 shape: (1, L)，batch=1
-    用途:
-      - 音素按顺序返回，未匹配的 token 会被原样返回。
-    """
+def _normalize_qwen_units(results) -> Optional[list[dict]]:
+    """将 Qwen3 对齐器原始输出规范化为 [{text, start, end}, ...]。"""
+    if not isinstance(results, (list, tuple)) or len(results) == 0:
+        return None
+    units = results[0]
+    normalized = []
+    for u in units:
+        if u is None:
+            continue
+        if isinstance(u, dict):
+            text = u.get("text")
+            st = u.get("start_time", u.get("start"))
+            et = u.get("end_time", u.get("end"))
+        else:
+            text = getattr(u, "text", None)
+            st = getattr(u, "start_time", None)
+            et = getattr(u, "end_time", None)
+        if text is None:
+            continue
+        try:
+            st, et = float(st), float(et)
+        except (TypeError, ValueError):
+            continue
+        if et < st:
+            continue
+        if et == st:
+            et = st + 0.01
+        normalized.append({"text": text, "start": st, "end": et})
+    return normalized if normalized else None
 
-    # 若语言支持 tokenizer，则使用 tokenizer
+
+def _text2phoneme_or_token(reference_text: str, language: str, processor) -> torch.Tensor:
+    """将参考文本转为 token ID tensor，shape (1, L)。"""
     if language in TOKEN_LANGUAGE:
-        # 使用 tokenizer 对参考文本进行编码（processor 用于音频）
-        return processor.tokenizer(
-            reference_text, return_tensors="pt", add_special_tokens=False
-        ).input_ids
-    # 否则语言支持phoneme，则使用 phonemizer
-    language = PHONEME_LANGUAGE_DICT[language]
-    if language is None:
+        return processor.tokenizer(reference_text, return_tensors="pt", add_special_tokens=False).input_ids
+
+    lang_code = PHONEME_LANGUAGE_MAP.get(language)
+    if lang_code is None:
         raise ValueError(f"不支持的语言：{language}")
 
     from phonemizer import phonemize
-
-    phonemes = phonemize(
-        reference_text,
-        backend="espeak",
-        language=language,
-        strip=True,
-        with_stress=False,
-    )
-    # 转成 token ids
+    phonemes = phonemize(reference_text, backend="espeak", language=lang_code, strip=True, with_stress=False)
     ids = processor.tokenizer.convert_tokens_to_ids(phonemes)
-
-    # 如果返回单个 int，包成 list
     if isinstance(ids, int):
         ids = [ids]
-
-    # 防止空 tensor
     if len(ids) == 0:
         ids = [BLANK_ID]
-    return torch.tensor(ids, dtype=torch.long).unsqueeze(0)  # shape (1, L)
+    return torch.tensor(ids, dtype=torch.long).unsqueeze(0)
 
 
-def select_attention_impl(dtype: torch.dtype) -> str:
-    """
-    自动选择最优 attention 实现
-    优先级：
-        1. flash_attention_2
-        2. sdpa
-        3. eager
-    仅依赖 dtype
-    """
-
-    # CUDA 不存在
+def _select_attention_impl(dtype: torch.dtype) -> str:
     if not torch.cuda.is_available():
         return "eager"
-
-    # dtype 不满足 FlashAttention 要求
     if dtype not in (torch.float16, torch.bfloat16):
         return "sdpa"
-
-    # transformers 检查 flash-attn2 是否可用
     if not is_flash_attn_2_available():
         return "sdpa"
-
-    # GPU 架构必须 SM80+
     try:
         major, _ = torch.cuda.get_device_capability()
         if major >= 8:
@@ -953,22 +696,26 @@ def select_attention_impl(dtype: torch.dtype) -> str:
     except Exception:
         return "sdpa"
     return "sdpa"
+
+
+# ============================================================
+# 向后兼容：保留旧的公共函数名
+# ============================================================
+clamp = _clamp
+token_to_pinyin = _token_to_pinyin
+text2phoneme_or_token = _text2phoneme_or_token
+select_attention_impl = _select_attention_impl
+
+
 # ============================================================
 # 示例运行
 # ============================================================
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     detector = SwallowPredictor(language="chinese", use_admm=False)
-    # audio_path = "../datasets/2.wav"
-    # result = detector.analyze(audio_path)
-
     audio_path = "datasets/a_1.wav"
-    reference_text = "我要定从高碑店东站到北京西的火车票"
+    reference_text = "我要订从高碑店东站到北京西的火车票"
     result = detector.analyze(
-        audio_data=audio_path, reference_text=reference_text, is_show_mel=False
+        audio_segment=audio_path, reference_text=reference_text,
     )
-
-    # detector = SwallowPredictor(language="english", use_admm=False)
-    # audio_path = "../datasets/en_100538.wav"
-    # reference_text = "when you start to eat like this something is the matter"
-    # result = detector.analyze(audio_path, reference_text=reference_text)
     print(result)
