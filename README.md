@@ -3,6 +3,7 @@
 基于 [夜雨飘零](https://github.com/yeyupiaoling/VoiceprintRecognition-Pytorch) 项目，
 1.新增 Web 端声纹对比、声纹识别、说话人日志。
 2.新增基于声学特征和CTC强制对齐检测的吞音的音频成分识别。
+3.新增基于qwen3-embedding-4b的意图识别。
 
 # 基于 Pytorch 实现的声纹识别系统
 
@@ -623,7 +624,7 @@ app/
 uv sync --extra cpu
 # 支持cuda
 uv sync --extra cu128
-# 另外transformers5和4的api变化有些不同，你可以 transformers==4.57.3指定版本
+# 另外transformers5和4的api变化有些不同，你可以 transformers==4.57.6指定版本
 uv pip install transformers==4.57.6 qwen-asr
 
 # uv pip install flash-attn --no-build-isolation

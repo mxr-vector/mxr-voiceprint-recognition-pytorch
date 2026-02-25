@@ -3,7 +3,7 @@
 Add voiceprint comparison, voiceprint recognition, and speaker logs.based on [夜雨飘零](https://github.com/yeyupiaoling/VoiceprintRecognition-Pytorch) project.
 1.Added voiceprint comparison, voiceprint recognition, and speaker logs on the Web.
 2.Added audio component recognition for elision detection based on acoustic features and CTC forced alignment.
-
+3. Added intent recognition based on qwen3-embedding-4b.
 # Voiceprint recognition system based on Pytorch
 
 ![python version](https://img.shields.io/badge/python-3.8+-orange.svg)

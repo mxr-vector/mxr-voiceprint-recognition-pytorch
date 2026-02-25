@@ -10,8 +10,7 @@ from mvector.utils.audio_utils import load_audio_segment, show_melspec_to_bytes
 router = APIRouter(prefix="/model", tags=["OpenAPI - 音频表征识别开放接口"])
 
 
-# 获取音频特征
-@router.post("/feature")
+@router.post("/feature",summary="获取音频特征")
 async def getEmbedding(
     audio_data: UploadFile = File(..., description="音频文件"),
 ) -> Union[R]:
@@ -19,9 +18,7 @@ async def getEmbedding(
     embedding = await singleVoiceprintService.predict(audio_segment)
     return R.success(embedding)
 
-
-# 获取两个音频相似度
-@router.post("/similarity")
+@router.post("/similarity",summary="获取两个音频相似度")
 async def getSimilarity(
     audio_data1: UploadFile = File(..., description="音频文件1"),
     audio_data2: UploadFile = File(..., description="音频文件2"),
@@ -33,9 +30,7 @@ async def getSimilarity(
     )
     return R.success({"similarity": similarity, "threshold": threshold})
 
-
-# 注册用户音频
-@router.post("/register")
+@router.post("/register",summary="注册用户音频")
 async def registerAudio(
     storage_id: str = Form(..., description="声纹id"),
     audio_data: UploadFile = File(..., description="音频文件"),
@@ -50,9 +45,7 @@ async def registerAudio(
         else R.fail("注册失败")
     )
 
-
-# 识别用户音频
-@router.post("/recognition")
+@router.post("/recognition",summary="识别用户音频")
 async def recognitionAudio(
     audio_data: UploadFile = File(..., description="音频文件")
 ) -> Union[R]:
@@ -60,9 +53,7 @@ async def recognitionAudio(
     storage_id, score = await singleVoiceprintService.recognition(audio_segment)
     return R.success({"storage_id": storage_id, "score": score})
 
-
-# 说话人日志识别
-@router.post("/speaker_diarization", response_model_exclude_none=False)
+@router.post("/speaker_diarization",summary="说话人日志识别", response_model_exclude_none=False)
 async def speaker_diarization(
     speaker_num: int = Form(None, description="说话人数量"),
     audio_data: UploadFile = File(..., description="音频文件"),
@@ -73,25 +64,19 @@ async def speaker_diarization(
     )
     return R.success(results)
 
-
-# 获取所有用户
-@router.get("/users")
+@router.get("/users",summary="获取所有用户")
 async def getUsers() -> Union[R]:
     users = await singleVoiceprintService.get_users()
     return R.success(users)
 
-
-# 清空用户音频
-@router.delete("/clear")
+@router.delete("/clear",summary="清空用户音频")
 async def clearAudio(
     storage_id: str = Query(..., description="用户目录id")
 ) -> Union[R]:
     result = await singleVoiceprintService.clear_user(storage_id)
     return R.success("删除成功") if result else R.fail("删除失败")
 
-
-# 删除用户声纹
-@router.delete("/delete")
+@router.delete("/delete",summary="删除用户声纹")
 async def deleteAudio(
     storage_id: str = Query(..., description="用户目录id"),
     audio_path: str = Query(..., description="音频路径"),
@@ -100,8 +85,7 @@ async def deleteAudio(
     return R.success("删除成功") if result else R.fail("删除失败")
 
 
-# 声纹检测预览接口
-@router.get("/preview")
+@router.get("/preview",summary="声纹检测预览接口")
 async def preview(
     file_url: str = Query(..., description="声纹文件相对地址")
 ) -> Union[FileResponse]:
@@ -109,9 +93,7 @@ async def preview(
         path=file_url, media_type="audio/wav", headers={"Accept-Ranges": "bytes"}
     )
 
-
-# 吞音检测接口
-@router.post("/swallow")
+@router.post("/swallow",summary="吞音检测接口")
 async def swallow(
     lang: str = Form("zh-cn", description="语种"),
     reference_text: str = Form(None, description="参考文本"),
@@ -125,9 +107,7 @@ async def swallow(
     )
     return R.success(result)
 
-
-# 显示mel谱
-@router.post("/swallow/preview")
+@router.post("/swallow/preview",summary="显示mel谱")
 async def swallow_preview(
     audio_data: UploadFile = File(..., description="音频文件")
 ) -> Union[FileResponse]:
