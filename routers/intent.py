@@ -69,7 +69,7 @@ class ReloadIntentsRequest(BaseModel):
     summary="语音指令意图识别",
     response_model=R,
 )
-async def intent_recognition(req: IntentRecognitionRequest) -> Union[R]:
+async def intent_recognition(req: IntentRecognitionRequest) -> R:
     """
     对输入的语音指令文本进行多意图识别。
 
@@ -98,7 +98,7 @@ async def intent_recognition(req: IntentRecognitionRequest) -> Union[R]:
     summary="热更新意图字典",
     response_model=R,
 )
-async def reload_intents(req: ReloadIntentsRequest) -> Union[R]:
+async def reload_intents(req: ReloadIntentsRequest) -> R:
     """
     动态替换意图字典并重新计算 prototype 向量，无需重启服务。
     """
@@ -111,7 +111,7 @@ async def reload_intents(req: ReloadIntentsRequest) -> Union[R]:
     summary="查询当前意图标签列表",
     response_model=R,
 )
-async def get_intents() -> Union[R]:
+async def get_intents() -> R:
     """
     返回当前已加载的所有意图标签，不触发模型加载。
     """

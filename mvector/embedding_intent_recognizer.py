@@ -11,6 +11,9 @@ EmbeddingIntentRecognizer — 纯推理引擎
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import torch
 import torch.nn.functional as F
 from dataclasses import dataclass
@@ -32,73 +35,41 @@ class IntentResult:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 默认意图字典（航空航天 + 陆地通信）
+# 意图字典加载（从 JSON 文件读取，便于后期迁移到数据库）
 # ──────────────────────────────────────────────────────────────────────────────
-DEFAULT_INTENT_DICT: dict[str, list[str]] = {
-    # ── 飞行姿态控制 ──────────────────────────────────────
-    "起飞": [
-        "执行 takeoff", "准备起飞", "开始起飞流程",
-        "rotate and lift off", "飞机起飞", "airport takeoff clearance",
-    ],
-    "降落": [
-        "执行 landing", "准备降落", "进入 final approach",
-        "开始着陆程序", "gear down for landing", "aircraft landing",
-    ],
-    "偏航调整": [
-        "调整 yaw 角度", "修正偏航", "yaw correction",
-        "偏航角修正", "偏航控制",
-    ],
-    "俯仰调整": [
-        "调整 pitch 角度", "俯仰控制", "pitch adjustment",
-        "拉杆抬头", "nose up pitch correction",
-    ],
-    "横滚调整": [
-        "roll correction", "横滚角调整", "调整 roll",
-        "bank angle correction", "翻滚修正",
-    ],
+DEFAULT_INTENT_DICT_PATH: str = "dataset/intent_dict.json"
 
-    # ── 动力与速度 ────────────────────────────────────────
-    "推力控制": [
-        "increase thrust", "降低发动机推力", "throttle adjustment",
-        "发动机油门调节", "reduce engine power", "推力加大",
-    ],
-    "速度调整": [
-        "increase airspeed", "调整飞行速度", "reduce velocity",
-        "airspeed control", "降低空速", "速度超限",
-    ],
 
-    # ── 高度与航向 ────────────────────────────────────────
-    "高度调整": [
-        "climb to 3000 meters", "下降至 2000 米", "调整飞行高度",
-        "altitude change", "maintain flight level", "爬升至高度层", "下降高度",
-    ],
-    "航向修正": [
-        "heading correction", "修正航向", "调整航向角",
-        "turn left heading 270", "new heading assigned", "航向变更",
-    ],
+def _load_intent_dict_from_json(path: str | Path) -> dict[str, list[str]]:
+    """
+    从生产级 JSON 文件加载意图字典。
 
-    # ── 异常与告警 ────────────────────────────────────────
-    "异常告警": [
-        "engine fault detected", "出现系统异常", "warning alert",
-        "发动机故障", "hydraulic system failure",
-        "cabin pressure warning", "紧急告警", "系统报警",
-    ],
+    JSON 格式要求::
 
-    # ── 通信相关（陆地通信 / ATC）────────────────────────
-    "请求许可": [
-        "request takeoff clearance", "申请起飞许可",
-        "request landing permission", "申请降落许可",
-        "requesting ATC approval",
-    ],
-    "位置报告": [
-        "position report", "当前位置报告", "reporting position",
-        "位置汇报", "我方坐标", "current coordinates",
-    ],
-    "频道切换": [
-        "switch to frequency", "切换频道", "change radio frequency",
-        "转换通信频率", "频率更换",
-    ],
-}
+        {
+          "metadata": { "version": "...", ... },
+          "intents": [
+            { "label": "起飞", "category": "塔台", "prototypes": [...] },
+            ...
+          ]
+        }
+
+    Returns
+    -------
+    dict[str, list[str]]
+        {意图标签: 原型短语列表}，与推理引擎所需格式一致。
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return {
+        entry["label"]: entry["prototypes"]
+        for entry in data["intents"]
+    }
+
+
+DEFAULT_INTENT_DICT: dict[str, list[str]] = _load_intent_dict_from_json(
+    DEFAULT_INTENT_DICT_PATH
+)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

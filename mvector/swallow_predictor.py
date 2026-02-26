@@ -317,13 +317,12 @@ class S1AlignmentScorer:
         phoneme_results: list,
         logits: torch.Tensor,
         reference_text: str,
-        language: str,
         processor: Wav2Vec2Processor,
         cfg: SwallowConfig,
     ) -> bool:
         """对已有 phoneme_results 补充 CTC S1 评分。返回是否成功。"""
         try:
-            targets = _text2phoneme_or_token(reference_text, language, processor).to(logits.device)
+            targets = _text2phoneme_or_token(reference_text, processor).to(logits.device)
             log_probs = torch.log_softmax(logits, dim=-1).unsqueeze(0)
             alignment, _ = F.forced_align(log_probs, targets, blank=BLANK_ID)
             alignment = alignment[0]
@@ -365,7 +364,6 @@ class SwallowPredictor:
 
     def __init__(
         self,
-        language="zh-cn",
         acoustic_model_path="jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn",
         forced_aligner_model_path="Qwen/Qwen3-ForcedAligner-0.6B",
         use_forced_aligner=True,
@@ -374,7 +372,6 @@ class SwallowPredictor:
         use_gpu=True,
         use_admm=False,
     ):
-        self.language = language.lower()
 
         # ── 设备 ──
         if use_gpu and torch.cuda.is_available():
@@ -473,11 +470,11 @@ class SwallowPredictor:
         }
 
     # ── 有参考文本：Qwen3 对齐路径 ──
-    def _build_from_qwen3(self, wav: np.ndarray, logits: torch.Tensor, reference_text: str) -> Optional[list]:
+    def _build_from_qwen3(self, wav: np.ndarray, logits: torch.Tensor, reference_text: str, language: str) -> Optional[list]:
         if self._s1_scorer is None:
             return None
 
-        units = self._s1_scorer.align_qwen3(wav, reference_text, self.language)
+        units = self._s1_scorer.align_qwen3(wav, reference_text, language)
         if not units:
             return None
 
@@ -542,13 +539,13 @@ class SwallowPredictor:
             if is_mumble:
                 s2 = S2Score(
                     score=min(s2.score, 0.4),
-                    reasons=s2.reasons + (["模糊发音(Mumble)"] if "模糊发音(Mumble)" not in s2.reasons else []),
+                    reasons=s2.reasons + (["模糊发音"] if "模糊发音" not in s2.reasons else []),
                     metrics=s2.metrics,
                 )
 
             # 无参考文本：token 为空串，不给前端转写
             if reference_text:
-                token = "[MUMBLE]" if is_mumble else self.processor.tokenizer._convert_id_to_token(pid)
+                token = "[MUMBLE]" if is_mumble else self.processor.decode(pid)
             else:
                 token = ""
 
@@ -558,12 +555,12 @@ class SwallowPredictor:
 
         # 有参考文本但 Qwen3 失败的回退：补充 CTC S1
         if reference_text and self._s1_scorer is not None:
-            S1AlignmentScorer.align_ctc_s1(results, logits, reference_text, self.language, self.processor, self.cfg)
+            S1AlignmentScorer.align_ctc_s1(results, logits, reference_text, self.processor, self.cfg)
 
         return results
 
     # ── 主分析入口 ──
-    def analyze(self, audio_segment: AudioSegment, reference_text: str = None) -> dict:
+    def analyze(self, audio_segment: AudioSegment, reference_text: str = None, language: str = "chinese") -> dict:
         """
         对给定音频执行完整吞音检测流程。
         - 有参考文本：优先 Qwen3 强制对齐构建结果
@@ -576,8 +573,8 @@ class SwallowPredictor:
 
         # ── 有参考文本：优先 Qwen3 ──
         if reference_text:
-            logger.info("Path: Qwen3 Forced Aligner (lang=%s)", self.language)
-            phoneme_results = self._build_from_qwen3(wav, logits, reference_text)
+            logger.info("Path: Qwen3 Forced Aligner (lang=%s)", language)
+            phoneme_results = self._build_from_qwen3(wav, logits, reference_text, language)
 
         # ── 回退 / 无参考文本：CTC ──
         if phoneme_results is None:
@@ -646,7 +643,7 @@ def _normalize_qwen_units(results) -> Optional[list[dict]]:
     return normalized if normalized else None
 
 
-def _text2phoneme_or_token(reference_text: str, language: str, processor) -> torch.Tensor:
+def _text2phoneme_or_token(reference_text: str, processor) -> torch.Tensor:
     """将参考文本转为 token ID tensor，shape (1, L)。"""
     # 统一使用 Processor 的 Tokenizer 进行回退对齐编码，移除厚重的 phonemizer 依赖
     return processor.tokenizer(reference_text, return_tensors="pt", add_special_tokens=False).input_ids
@@ -682,7 +679,7 @@ select_attention_impl = _select_attention_impl
 # ============================================================
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    detector = SwallowPredictor(language="chinese", use_admm=False)
+    detector = SwallowPredictor(use_admm=False)
     audio_path = "datasets/a_1.wav"
     reference_text = "我要订从高碑店东站到北京西的火车票"
     result = detector.analyze(
