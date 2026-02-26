@@ -37,9 +37,6 @@ class __IntentService(AsyncServiceBase):
             main_args, "intent_model_path", "models/hf/Qwen3-Embedding-4B"
         )
         self._threshold: float = getattr(main_args, "intent_threshold", 0.55)
-        self._window_sizes: list[int] = getattr(
-            main_args, "intent_window_sizes", [3, 5, 8, 12]
-        )
 
     # ── 生命周期 ──────────────────────────────────────────────────────────────
 
@@ -53,7 +50,6 @@ class __IntentService(AsyncServiceBase):
             model_name=self._model_name,
             intent_dict=DEFAULT_INTENT_DICT,
             threshold=self._threshold,
-            window_sizes=self._window_sizes,
             lazy=False,
         )
         logger.info(
@@ -99,7 +95,6 @@ class __IntentService(AsyncServiceBase):
         self,
         text: str,
         threshold: Optional[float] = None,
-        window_sizes: Optional[list[int]] = None,
     ) -> list[IntentResult]:
         """
         对文本进行多意图识别。
@@ -110,8 +105,6 @@ class __IntentService(AsyncServiceBase):
             待识别文本（支持中英文混合）。
         threshold : float, optional
             本次调用阈值，不传则使用服务默认值。
-        window_sizes : list[int], optional
-            本次滑窗尺寸，不传则使用服务默认值。
 
         Returns
         -------
@@ -131,7 +124,6 @@ class __IntentService(AsyncServiceBase):
                     recognizer.predict,
                     text=text,
                     threshold=threshold,
-                    window_sizes=window_sizes,
                 )
             logger.debug(f"[IntentService] 识别完成，命中 {len(results)} 个意图")
             return results

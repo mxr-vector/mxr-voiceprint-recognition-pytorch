@@ -18,16 +18,11 @@ class IntentRecognitionRequest(BaseModel):
         default=0.55, ge=0.0, le=1.0,
         description="余弦相似度阈值，默认 0.55"
     )
-    window_sizes: list[int] = Field(
-        default=[3, 5, 8, 12],
-        description="token 滑动窗口大小列表"
-    )
 
     model_config = {"json_schema_extra": {
         "example": {
             "text": "engine fault detected 并修正航向",
             "threshold": 0.55,
-            "window_sizes": [3, 5, 8, 12],
         }
     }}
 
@@ -75,12 +70,11 @@ async def intent_recognition(req: IntentRecognitionRequest) -> R:
 
     - 支持单意图和多意图（长句）
     - 支持中英文混合输入
-    - 双路识别：整句语义 + token 级滑动窗口
+    - 双路识别：整句语义 + 子句切分
     """
     results = await singleIntentService.recognize(
         text=req.text,
         threshold=req.threshold,
-        window_sizes=req.window_sizes,
     )
     data = IntentRecognitionData(
         text=req.text,

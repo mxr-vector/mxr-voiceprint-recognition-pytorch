@@ -48,7 +48,6 @@ def __build_parser_args() -> argparse.ArgumentParser:
     # 意图识别模型
     add_arg("intent_model_path",str,"models/hf/Qwen3-Embedding-4B","意图识别模型文件路径")
     add_arg("intent_threshold", float, 0.55, "意图识别阈值")
-    add_arg("intent_window_sizes", list[int], [3, 5, 8, 12], "意图识别滑窗尺寸")
     # 通用参数
     add_arg("use_gpu", bool, torch.cuda.is_available(), help="是否使用GPU预测")
     add_arg("web_secret_key", str, "voiceprint-open-api-token", "接口请求秘钥")
