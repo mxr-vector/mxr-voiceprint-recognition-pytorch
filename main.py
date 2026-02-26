@@ -55,5 +55,5 @@ if __name__ == "__main__":
     cpu_count = os.cpu_count() or 1
     workers = cpu_count // 8 + 1
     uvicorn.run("main:app", host=args.host, port=args.port, reload=True, workers=1)
-    # uvicorn.run("main:app", host=args.host, port=args.port, reload=False, workers=workers)
+    # uvicorn.run("main:app", host=args.host, port=args.port, reload=False, workers=1)
     logger.info("声纹识别 Web服务器启动....")
