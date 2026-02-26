@@ -55,7 +55,7 @@ COPY pyproject.toml .python-version ./
 
 # 同步依赖，--active 强制使用当前 venv，避免重建
 RUN uv sync --python 3.11 --extra cu128 --active
-
+RUN uv pip install transformers==4.57.6 qwen-asr
 # 再拷贝项目代码
 COPY . .
 
