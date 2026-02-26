@@ -23,13 +23,7 @@ logger = logging.getLogger(__name__)
 # ============================================================
 # 常量
 # ============================================================
-TOKEN_LANGUAGE = frozenset({
-    "chinese", "japanese", "korean",
-    "zh-cn", "ja-jp", "ko-kr",
-    "zh_cn", "ja_jp", "ko_kr",
-})
-
-PHONEME_LANGUAGE_MAP = {"english": "en-us", "en-us": "en-us"}
+# (语言常量交由模型内部处理，统一为端到端方式)
 
 SAMPLE_RATE = 16_000
 FRAME_MS = 10.0
@@ -372,8 +366,7 @@ class SwallowPredictor:
     def __init__(
         self,
         language="zh-cn",
-        token_model_path="jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn",
-        phoneme_model_path="facebook/wav2vec2-large-960h-lv60-self",
+        acoustic_model_path="jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn",
         forced_aligner_model_path="Qwen/Qwen3-ForcedAligner-0.6B",
         use_forced_aligner=True,
         risk_threshold=0.45,
@@ -381,14 +374,7 @@ class SwallowPredictor:
         use_gpu=True,
         use_admm=False,
     ):
-        language = language.lower()
-        if language in TOKEN_LANGUAGE:
-            model_path = token_model_path
-        elif PHONEME_LANGUAGE_MAP.get(language) is not None:
-            model_path = phoneme_model_path
-            language = PHONEME_LANGUAGE_MAP[language]
-        else:
-            raise ValueError(f"不支持的语言: {language}")
+        self.language = language.lower()
 
         # ── 设备 ──
         if use_gpu and torch.cuda.is_available():
@@ -400,15 +386,14 @@ class SwallowPredictor:
 
         # ── 配置 ──
         self.cfg = SwallowConfig(risk_threshold=risk_threshold, severe_threshold=severe_threshold)
-        self.language = language
 
-        # ── wav2vec2 模型 ──
+        # ── wav2vec2 声学提取模型 ──
         if torch.cuda.is_available():
             torch.backends.cudnn.benchmark = True
-        self.processor = Wav2Vec2Processor.from_pretrained(model_path)
+        self.processor = Wav2Vec2Processor.from_pretrained(acoustic_model_path)
         attn_impl = _select_attention_impl(self.dtype)
         self.model = Wav2Vec2ForCTC.from_pretrained(
-            model_path,
+            acoustic_model_path,
             attn_implementation=attn_impl if torch.cuda.is_available() else None,
         ).to(self.device)
         self.model.eval()
@@ -590,16 +575,14 @@ class SwallowPredictor:
         phoneme_results = None
 
         # ── 有参考文本：优先 Qwen3 ──
-        if reference_text and self.language in TOKEN_LANGUAGE:
+        if reference_text:
             logger.info("Path: Qwen3 Forced Aligner (lang=%s)", self.language)
             phoneme_results = self._build_from_qwen3(wav, logits, reference_text)
 
         # ── 回退 / 无参考文本：CTC ──
         if phoneme_results is None:
-            if reference_text and self.language in TOKEN_LANGUAGE:
-                logger.warning("Qwen3 failed, falling back to CTC segmentation")
-            elif reference_text:
-                logger.info("Language '%s' not supported by Qwen3, using CTC path", self.language)
+            if reference_text:
+                logger.warning("Qwen3 failed or unavailable, falling back to CTC segmentation")
             else:
                 logger.info("No reference text, using CTC segmentation (S2 only)")
             segments = self._ctc_segments(logits)
@@ -665,21 +648,8 @@ def _normalize_qwen_units(results) -> Optional[list[dict]]:
 
 def _text2phoneme_or_token(reference_text: str, language: str, processor) -> torch.Tensor:
     """将参考文本转为 token ID tensor，shape (1, L)。"""
-    if language in TOKEN_LANGUAGE:
-        return processor.tokenizer(reference_text, return_tensors="pt", add_special_tokens=False).input_ids
-
-    lang_code = PHONEME_LANGUAGE_MAP.get(language)
-    if lang_code is None:
-        raise ValueError(f"不支持的语言：{language}")
-
-    from phonemizer import phonemize
-    phonemes = phonemize(reference_text, backend="espeak", language=lang_code, strip=True, with_stress=False)
-    ids = processor.tokenizer.convert_tokens_to_ids(phonemes)
-    if isinstance(ids, int):
-        ids = [ids]
-    if len(ids) == 0:
-        ids = [BLANK_ID]
-    return torch.tensor(ids, dtype=torch.long).unsqueeze(0)
+    # 统一使用 Processor 的 Tokenizer 进行回退对齐编码，移除厚重的 phonemizer 依赖
+    return processor.tokenizer(reference_text, return_tensors="pt", add_special_tokens=False).input_ids
 
 
 def _select_attention_impl(dtype: torch.dtype) -> str:

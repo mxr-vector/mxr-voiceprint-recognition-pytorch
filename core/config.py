@@ -35,27 +35,11 @@ def __build_parser_args() -> argparse.ArgumentParser:
 
     # 吞音检测参数
     # 语音表征CTC模型 如wav2vec2，HuBERT, M-CTC-T
-    """
-    字符集检测模型，用于加载 wav2vec2 中文模型，
-    该模型可替换为任意字符级语言模型如 中 日 韩 
-    """
     add_arg(
-        "ctc_token_model_path",
+        "acoustic_model_path",
         str,
         "models/hf/wav2vec2-large-xlsr-53-chinese-zh-cn",
-        "语音表征CTC 字符检测模型文件路径",
-    )
-    """
-    音素级检测模型，用于加载 wav2vec2 英文模型xl 模型，
-    用户输入必须映射为 语言规范编码，如 en-us、zh-cn、ja-jp、ko-kr
-    该目前使用的是espeak-ng音素检测模型，额外需要检查模型语言支持 
-    espeak --voices
-    """
-    add_arg(
-        "ctc_phoneme_model_path",
-        str,
-        "models/hf/wav2vec2-large-960h-lv60-self",
-        "语音表征CTC 音素检测模型文件路径",
+        "语音表征单一声学模型文件路径",
     )
     add_arg("forced_aligner_model_path",str,"models/hf/Qwen3-ForcedAligner-0.6B","强制对齐模型文件路径")
     add_arg("risk_threshold", float, 0.45, " 高风险阈值")

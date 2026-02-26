@@ -29,10 +29,8 @@ class __SwallowPredictorService(AsyncServiceBase):
             "use_gpu": self.args.use_gpu,
             "use_admm": False,
         }
-        if self.args.ctc_token_model_path:
-            kwargs["token_model_path"] = self.args.ctc_token_model_path
-        if self.args.ctc_phoneme_model_path:
-            kwargs["phoneme_model_path"] = self.args.ctc_phoneme_model_path
+        if getattr(self.args, "acoustic_model_path", None):
+            kwargs["acoustic_model_path"] = self.args.acoustic_model_path
         if self.args.forced_aligner_model_path:
             kwargs["forced_aligner_model_path"] = self.args.forced_aligner_model_path
         self._predictors[lang] = SwallowPredictor(**kwargs)

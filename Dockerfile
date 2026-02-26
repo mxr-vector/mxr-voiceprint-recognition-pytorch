@@ -25,9 +25,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
     procps \
-    espeak-ng \
     ca-certificates && \
-    ln -s /usr/bin/espeak-ng /usr/bin/espeak && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /workspace/models/hf/datasets /workspace/logs
 
