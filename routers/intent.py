@@ -103,9 +103,11 @@ async def intent_recognition(req: IntentRecognitionRequest) -> R:
         text=req.text,
         threshold=req.threshold,
     )
+    # 只返回得分最高的前 5 个意图
+    top_results = results[:5]
     data = IntentRecognitionData(
         text=req.text,
-        total=len(results),
+        total=len(top_results),
         intents=[
             IntentItem(
                 label=r.label,
@@ -115,7 +117,7 @@ async def intent_recognition(req: IntentRecognitionRequest) -> R:
                 score=r.score,
                 span=r.span,
             )
-            for r in results
+            for r in top_results
         ],
     )
     return R.success(data.model_dump())
