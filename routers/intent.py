@@ -1,8 +1,8 @@
-from typing import Union
-from fastapi import APIRouter, Body
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from services import singleIntentService
+from mvector.embedding_intent_recognizer import IntentMeta
 from core.response import R
 
 # 创建路由
@@ -15,50 +15,75 @@ router = APIRouter(prefix="/intent", tags=["OpenAPI - 意图识别开放接口"]
 class IntentRecognitionRequest(BaseModel):
     text: str = Field(..., description="待识别的语音指令文本（支持中英文混合）")
     threshold: float = Field(
-        default=0.55, ge=0.0, le=1.0,
-        description="余弦相似度阈值，默认 0.55"
+        default=0.55, ge=0.0, le=1.0, description="余弦相似度阈值，默认 0.55"
     )
 
-    model_config = {"json_schema_extra": {
-        "example": {
-            "text": "engine fault detected 并修正航向",
-            "threshold": 0.55,
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "text": "engine fault detected 并修正航向",
+                "threshold": 0.55,
+            }
         }
-    }}
+    }
 
 
 class IntentItem(BaseModel):
-    label: str  = Field(..., description="意图标签")
+    label: str = Field(..., description="意图标签（细粒度子标签）")
+    group: str = Field(..., description="意图大类")
+    category: str = Field(..., description="意图分类（塔台/进近/区域管制等）")
+    action: str = Field(..., description="动作极性（APPROVE/CANCEL/ABORT 等）")
     score: float = Field(..., description="余弦相似度得分")
-    span: str   = Field(..., description="命中的 span 描述（可追溯性）")
+    span: str = Field(..., description="命中的 span 描述（可追溯性）")
 
 
 class IntentRecognitionData(BaseModel):
-    text: str              = Field(..., description="输入文本")
-    total: int             = Field(..., description="命中意图总数")
+    text: str = Field(..., description="输入文本")
+    total: int = Field(..., description="命中意图总数")
     intents: list[IntentItem] = Field(..., description="识别结果（按得分降序）")
 
 
+class ReloadIntentEntry(BaseModel):
+    """热更新时提交的单个意图条目。"""
+    label: str = Field(..., description="意图标签（细粒度子标签）")
+    group: str = Field(..., description="意图大类")
+    category: str = Field(..., description="意图分类")
+    action: str = Field(default="", description="动作极性")
+    prototypes: list[str] = Field(..., description="prototype 句子列表")
+
+
 class ReloadIntentsRequest(BaseModel):
-    intent_dict: dict[str, list[str]] = Field(
-        ...,
-        description="新的意图字典，key=意图标签，value=prototype 句子列表",
+    intents: list[ReloadIntentEntry] = Field(
+        ..., description="意图元数据列表，完全替换原有意图"
     )
 
-    model_config = {"json_schema_extra": {
-        "example": {
-            "intent_dict": {
-                "起飞": ["准备起飞", "执行 takeoff"],
-                "降落": ["准备降落", "gear down for landing"],
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "intents": [
+                    {
+                        "label": "准备约会", # 子类
+                        "group": "出行", # 顶级大类
+                        "category": "我", # 主体
+                        "action": "APPROVE", # 动作极性
+                        "prototypes": ["准备约会","希望约会", "Getting ready for a date"], # 模板句
+                    },
+                    {
+                        "label": "取消约会",
+                        "group": "出行",
+                        "category": "我",
+                        "action": "CANCEL",
+                        "prototypes": ["取消约会", "cancel the date"],
+                    },
+                ]
             }
         }
-    }}
+    }
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 接口定义
 # ──────────────────────────────────────────────────────────────────────────────
-
 @router.post(
     "/recognition",
     summary="语音指令意图识别",
@@ -71,6 +96,7 @@ async def intent_recognition(req: IntentRecognitionRequest) -> R:
     - 支持单意图和多意图（长句）
     - 支持中英文混合输入
     - 双路识别：整句语义 + 子句切分
+    - 返回细粒度子标签 + 动作极性
     """
     results = await singleIntentService.recognize(
         text=req.text,
@@ -80,7 +106,14 @@ async def intent_recognition(req: IntentRecognitionRequest) -> R:
         text=req.text,
         total=len(results),
         intents=[
-            IntentItem(label=r.label, score=r.score, span=r.span)
+            IntentItem(
+                label=r.label,
+                group=r.group,
+                category=r.category,
+                action=r.action,
+                score=r.score,
+                span=r.span,
+            )
             for r in results
         ],
     )
@@ -95,8 +128,19 @@ async def intent_recognition(req: IntentRecognitionRequest) -> R:
 async def reload_intents(req: ReloadIntentsRequest) -> R:
     """
     动态替换意图字典并重新计算 prototype 向量，无需重启服务。
+    提交完整的 IntentMeta 列表（含 label/group/category/action/prototypes）。
     """
-    count = await singleIntentService.reload_intents(req.intent_dict)
+    intent_meta = [
+        IntentMeta(
+            label=e.label,
+            group=e.group,
+            category=e.category,
+            action=e.action,
+            prototypes=e.prototypes,
+        )
+        for e in req.intents
+    ]
+    count = await singleIntentService.reload_intents(intent_meta)
     return R.success({"intent_count": count}, msg=f"意图字典已更新，共 {count} 个意图")
 
 

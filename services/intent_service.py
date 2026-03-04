@@ -19,7 +19,8 @@ from core.config import args as main_args
 from core.logger import logger
 from mvector.embedding_intent_recognizer import (
     EmbeddingIntentRecognizer,
-    DEFAULT_INTENT_DICT,
+    DEFAULT_INTENT_META,
+    IntentMeta,
     IntentResult,
 )
 from services.base import AsyncServiceBase, run_sync
@@ -48,7 +49,7 @@ class __IntentService(AsyncServiceBase):
         logger.info(f"[IntentService] 加载嵌入模型: {self._model_name}")
         self._recognizer = EmbeddingIntentRecognizer(
             model_name=self._model_name,
-            intent_dict=DEFAULT_INTENT_DICT,
+            intent_meta=DEFAULT_INTENT_META,
             threshold=self._threshold,
             lazy=False,
         )
@@ -131,16 +132,14 @@ class __IntentService(AsyncServiceBase):
             logger.error(f"[IntentService] 识别异常: {e}")
             raise
 
-    async def reload_intents(
-        self, intent_dict: dict[str, list[str]]
-    ) -> int:
+    async def reload_intents(self, intent_meta: list[IntentMeta]) -> int:
         """
         热更新意图字典（重新计算 prototype 向量）。
 
         Parameters
         ----------
-        intent_dict : dict[str, list[str]]
-            新的意图字典，完全替换原有意图。
+        intent_meta : list[IntentMeta]
+            新的意图元数据列表，完全替换原有意图。
 
         Returns
         -------
@@ -148,11 +147,11 @@ class __IntentService(AsyncServiceBase):
             更新后的意图数量。
         """
         recognizer = await self._ensure_loaded()
-        logger.info(f"[IntentService] 热更新意图字典: {len(intent_dict)} 个意图")
+        logger.info(f"[IntentService] 热更新意图字典: {len(intent_meta)} 个意图")
         try:
             # _rw_lock 确保更新与推理互斥，防止读取到半更新的 prototype 向量
             async with self._get_async_lock("rw"):
-                await run_sync(recognizer.update_intents, intent_dict)
+                await run_sync(recognizer.update_intents, intent_meta)
             count = len(recognizer.intent_labels)
             logger.info(f"[IntentService] 意图字典更新完成，共 {count} 个意图")
             return count

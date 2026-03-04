@@ -5,7 +5,7 @@ EmbeddingIntentRecognizer — 纯推理引擎
 无业务逻辑、无日志、无异常捕获，所有错误向上抛出由 Service 层处理。
 
 支持两种初始化模式：
-  - 立即加载：EmbeddingIntentRecognizer(model_name=..., intent_dict=..., lazy=False)
+  - 立即加载：EmbeddingIntentRecognizer(model_name=..., intent_meta=..., lazy=False)
   - 延迟加载：EmbeddingIntentRecognizer(..., lazy=True)  →  之后调用 load()
 
 核心编码方式（Qwen3-Embedding 官方）：
@@ -31,13 +31,25 @@ from transformers import AutoTokenizer, AutoModel
 @dataclass
 class IntentResult:
     """单个意图命中结果。"""
-    label: str      # 意图标签
-    score: float    # 余弦相似度得分
-    span: str       # 命中 span 描述（用于可追溯性）
+    label: str        # 意图标签（细粒度子标签，如 "许可起飞"）
+    score: float      # 余弦相似度得分
+    span: str         # 命中 span 描述（用于可追溯性）
+    category: str     # 意图分类（如 "塔台"、"进近"、"区域管制"）
+    group: str        # 意图大类（如 "起飞"）
+    action: str       # 动作极性（如 APPROVE / CANCEL / ABORT）
 
-    def __iter__(self):
-        """支持 for label, score, desc in results 位置解包。"""
-        return iter((self.label, self.score, self.span))
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 意图元数据结构
+# ──────────────────────────────────────────────────────────────────────────────
+@dataclass
+class IntentMeta:
+    """单个意图的元数据（加载自 JSON）。"""
+    label: str
+    group: str
+    category: str
+    action: str
+    prototypes: list[str]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -46,34 +58,46 @@ class IntentResult:
 DEFAULT_INTENT_DICT_PATH: str = "dataset/intent_dict.json"
 
 
-def _load_intent_dict_from_json(path: str | Path) -> dict[str, list[str]]:
+def _load_intent_dict_from_json(path: str | Path) -> list[IntentMeta]:
     """
-    从生产级 JSON 文件加载意图字典。
+    从生产级 JSON 文件加载意图字典（v2 格式）。
 
     JSON 格式要求::
 
         {
           "metadata": { "version": "...", ... },
           "intents": [
-            { "label": "起飞", "category": "塔台", "prototypes": [...] },
+            {
+              "label": "许可起飞",
+              "group": "起飞",
+              "category": "塔台",
+              "action": "APPROVE",
+              "prototypes": [...]
+            },
             ...
           ]
         }
 
     Returns
     -------
-    dict[str, list[str]]
-        {意图标签: 原型短语列表}，与推理引擎所需格式一致。
+    list[IntentMeta]
+        意图元数据列表，保留 label/group/category/action 全部字段。
     """
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    return {
-        entry["label"]: entry["prototypes"]
+    return [
+        IntentMeta(
+            label=entry["label"],
+            group=entry.get("group", entry["label"]),
+            category=entry.get("category", ""),
+            action=entry.get("action", ""),
+            prototypes=entry["prototypes"],
+        )
         for entry in data["intents"]
-    }
+    ]
 
 
-DEFAULT_INTENT_DICT: dict[str, list[str]] = _load_intent_dict_from_json(
+DEFAULT_INTENT_META: list[IntentMeta] = _load_intent_dict_from_json(
     DEFAULT_INTENT_DICT_PATH
 )
 
@@ -126,8 +150,8 @@ class EmbeddingIntentRecognizer:
     ----------
     model_name : str
         HuggingFace 模型路径或名称。
-    intent_dict : dict[str, list[str]] | None
-        意图字典，None 则使用 DEFAULT_INTENT_DICT。
+    intent_meta : list[IntentMeta] | None
+        意图元数据列表，None 则使用 DEFAULT_INTENT_META。
     threshold : float
         余弦相似度默认阈值，默认 0.55。
     lazy : bool
@@ -137,18 +161,19 @@ class EmbeddingIntentRecognizer:
     def __init__(
         self,
         model_name: str = "models/hf/Qwen3-Embedding-4B",
-        intent_dict: dict[str, list[str]] | None = None,
+        intent_meta: list[IntentMeta] | None = None,
         threshold: float = 0.55,
         lazy: bool = False,
     ) -> None:
         self._model_name = model_name
-        self._pending_intent_dict = intent_dict or DEFAULT_INTENT_DICT
+        self._pending_meta = intent_meta or DEFAULT_INTENT_META
         self.threshold = threshold
 
         self._device: str = "cuda" if torch.cuda.is_available() else "cpu"
         self._tokenizer = None
         self._model = None
         self._intent_labels: list[str] = []
+        self._intent_metas: list[IntentMeta] = []  # 完整元数据
 
         # per-prototype 存储：保留每个原型的独立向量以提高判别力
         self._proto_embeddings: torch.Tensor | None = None  # (total_protos, dim)
@@ -174,7 +199,7 @@ class EmbeddingIntentRecognizer:
             torch_dtype=torch.bfloat16,
             device_map="auto",
         ).eval()
-        self._build_prototypes(self._pending_intent_dict)
+        self._build_prototypes(self._pending_meta)
 
     @property
     def is_ready(self) -> bool:
@@ -229,22 +254,29 @@ class EmbeddingIntentRecognizer:
 
         return sorted(
             [
-                IntentResult(label=label, score=round(score, 6), span=desc)
-                for label, (score, desc) in best.items()
+                IntentResult(
+                    label=label,
+                    score=round(score, 6),
+                    span=desc,
+                    category=meta.category if meta else "",
+                    group=meta.group if meta else "",
+                    action=meta.action if meta else "",
+                )
+                for label, (score, desc, meta) in best.items()
             ],
             key=lambda x: x.score,
             reverse=True,
         )
 
-    def update_intents(self, intent_dict: dict[str, list[str]]) -> None:
+    def update_intents(self, intent_meta: list[IntentMeta]) -> None:
         """
         热更新意图字典，重新计算 prototype 向量。
         模型未加载时更新缓存，待 load() 时生效。
         """
         if self.is_ready:
-            self._build_prototypes(intent_dict)
+            self._build_prototypes(intent_meta)
         else:
-            self._pending_intent_dict = intent_dict
+            self._pending_meta = intent_meta
 
     @property
     def intent_labels(self) -> list[str]:
@@ -253,20 +285,21 @@ class EmbeddingIntentRecognizer:
 
     # ── 私有方法 ──────────────────────────────────────────────────────────────
 
-    def _build_prototypes(self, intent_dict: dict[str, list[str]]) -> None:
+    def _build_prototypes(self, metas: list[IntentMeta]) -> None:
         """预计算每个意图下所有 prototype 的独立向量。"""
         labels: list[str] = []
         all_proto_embs: list[torch.Tensor] = []
         proto_to_intent: list[int] = []
 
-        for intent_idx, (intent, prototypes) in enumerate(intent_dict.items()):
+        for intent_idx, meta in enumerate(metas):
             # 原型用文档端编码（不加指令前缀）
-            emb = self._encode_document(prototypes)  # (P, dim)
-            labels.append(intent)
+            emb = self._encode_document(meta.prototypes)  # (P, dim)
+            labels.append(meta.label)
             all_proto_embs.append(emb)
             proto_to_intent.extend([intent_idx] * emb.shape[0])
 
         self._intent_labels = labels
+        self._intent_metas = metas
         self._num_intents = len(labels)
         self._proto_embeddings = torch.cat(all_proto_embs, dim=0)  # (total, dim)
         self._proto_to_intent = proto_to_intent
@@ -354,5 +387,6 @@ class EmbeddingIntentRecognizer:
             max_score = float(sims[mask].max())
             if max_score > threshold:
                 label = self._intent_labels[intent_idx]
+                meta = self._intent_metas[intent_idx] if self._intent_metas else None
                 if label not in best or max_score > best[label][0]:
-                    best[label] = (max_score, span_label)
+                    best[label] = (max_score, span_label, meta)
