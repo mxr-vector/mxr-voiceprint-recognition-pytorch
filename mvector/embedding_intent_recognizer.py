@@ -283,6 +283,11 @@ class EmbeddingIntentRecognizer:
         """当前已加载的意图标签列表。"""
         return list(self._intent_labels)
 
+    @property
+    def intent_metas(self) -> list[IntentMeta]:
+        """当前已加载的完整意图元数据列表。"""
+        return list(self._intent_metas)
+
     # ── 私有方法 ──────────────────────────────────────────────────────────────
 
     def _build_prototypes(self, metas: list[IntentMeta]) -> None:

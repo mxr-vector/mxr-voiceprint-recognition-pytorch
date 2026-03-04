@@ -29,6 +29,7 @@ class IntentRecognitionRequest(BaseModel):
 
 
 class IntentItem(BaseModel):
+    """识别命中的单个意图结果。"""
     label: str = Field(..., description="意图标签（细粒度子标签）")
     group: str = Field(..., description="意图大类")
     category: str = Field(..., description="意图分类（塔台/进近/区域管制等）")
@@ -43,8 +44,8 @@ class IntentRecognitionData(BaseModel):
     intents: list[IntentItem] = Field(..., description="识别结果（按得分降序）")
 
 
-class ReloadIntentEntry(BaseModel):
-    """热更新时提交的单个意图条目。"""
+class IntentEntry(BaseModel):
+    """意图条目 —— 查询 / 热更新 共用模型。"""
     label: str = Field(..., description="意图标签（细粒度子标签）")
     group: str = Field(..., description="意图大类")
     category: str = Field(..., description="意图分类")
@@ -53,7 +54,7 @@ class ReloadIntentEntry(BaseModel):
 
 
 class ReloadIntentsRequest(BaseModel):
-    intents: list[ReloadIntentEntry] = Field(
+    intents: list[IntentEntry] = Field(
         ..., description="意图元数据列表，完全替换原有意图"
     )
 
@@ -145,13 +146,24 @@ async def reload_intents(req: ReloadIntentsRequest) -> R:
 
 
 @router.get(
-    "/intents",
-    summary="查询当前意图标签列表",
+    "/",
+    summary="查询当前意图字典（全量）",
     response_model=R,
 )
 async def get_intents() -> R:
     """
-    返回当前已加载的所有意图标签，不触发模型加载。
+    返回当前已加载的完整意图字典，包含 label/group/category/action/prototypes，
+    与热更新接口格式一致，便于浏览和修改后提交。
     """
-    labels = await singleIntentService.get_intent_labels()
-    return R.success({"labels": labels, "total": len(labels)})
+    metas = await singleIntentService.get_intent_metas()
+    intents = [
+        IntentEntry(
+            label=m.label,
+            group=m.group,
+            category=m.category,
+            action=m.action,
+            prototypes=m.prototypes,
+        )
+        for m in metas
+    ]
+    return R.success({"intents": [i.model_dump() for i in intents], "total": len(intents)})

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 PYTHON_BIN="python3"
-APP_FILE="main.py"
+APP_FILE="infer.py"
 PID_FILE="app.pid"
 LOG_DIR="logs"
 LOG_FILE="$LOG_DIR/app_$(date +%F).log"

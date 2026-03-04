@@ -1,5 +1,5 @@
 from fastapi.responses import FileResponse
-from main import app
+from infer import app
 
 @app.get("/",summary="静态首页", include_in_schema=False)
 async def root():

@@ -161,11 +161,18 @@ class __IntentService(AsyncServiceBase):
 
     async def get_intent_labels(self) -> list[str]:
         """
-        查询当前已加载的意图标签列表（不触发模型加载）。
+        查询当前已加载的意图标签列表（懒加载：首次调用时触发模型初始化）。
         """
-        if not self.is_ready:
-            return []
-        return self._recognizer.intent_labels  # type: ignore[union-attr]
+        recognizer = await self._ensure_loaded()
+        return recognizer.intent_labels
+
+    async def get_intent_metas(self) -> list[IntentMeta]:
+        """
+        查询当前已加载的完整意图元数据列表（懒加载：首次调用时触发模型初始化）。
+        返回与热更新接口对应的全量数据，便于浏览和修改。
+        """
+        recognizer = await self._ensure_loaded()
+        return recognizer.intent_metas
 
 
 # ── 全局单例 ──────────────────────────────────────────────────────────────────

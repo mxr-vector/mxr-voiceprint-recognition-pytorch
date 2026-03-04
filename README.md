@@ -628,7 +628,7 @@ uv sync --extra cu128
 uv pip install transformers==4.57.6 qwen-asr
 
 # uv pip install flash-attn --no-build-isolation
-uv run main.py
+uv run infer.py
 
 ```
 
