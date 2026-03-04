@@ -93,8 +93,41 @@ def _load_intent_dict_from_json(path: str | Path) -> list[IntentMeta]:
             action=entry.get("action", ""),
             prototypes=entry["prototypes"],
         )
-        for entry in data["intents"]
+        for entry in data.get("intents", [])
     ]
+
+
+def _save_intent_dict_to_json(
+    metas: list[IntentMeta], path: str | Path = DEFAULT_INTENT_DICT_PATH
+) -> None:
+    """
+    将意图元数据列表写回 JSON 文件（v2 格式），实现热更新持久化。
+    """
+    from datetime import datetime, timezone, timedelta
+
+    data = {
+        "metadata": {
+            "version": "2.0.0",
+            "schema": "intent_dict/v2",
+            "description": "航空管制意图字典 v2 — 极性感知子标签",
+            "updated_at": datetime.now(
+                timezone(timedelta(hours=8))
+            ).strftime("%Y-%m-%dT%H:%M:%S+08:00"),
+            "changelog": "热更新写回",
+        },
+        "intents": [
+            {
+                "label": m.label,
+                "group": m.group,
+                "category": m.category,
+                "action": m.action,
+                "prototypes": m.prototypes,
+            }
+            for m in metas
+        ],
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
 
 DEFAULT_INTENT_META: list[IntentMeta] = _load_intent_dict_from_json(
@@ -306,7 +339,14 @@ class EmbeddingIntentRecognizer:
         self._intent_labels = labels
         self._intent_metas = metas
         self._num_intents = len(labels)
-        self._proto_embeddings = torch.cat(all_proto_embs, dim=0)  # (total, dim)
+        
+        if all_proto_embs:
+            self._proto_embeddings = torch.cat(all_proto_embs, dim=0)  # (total, dim)
+        else:
+            # 初始化一个空 tensor，特征维度依据模型 hidden_size (默认 Qwen3-Embedding 为 3584)
+            # 也可以简单置为 None，并在 match 时处理，这里选用创建一个空的 0x0 tensor
+            self._proto_embeddings = torch.empty((0, self._model.config.hidden_size if self._model else 3584), device=self._device)
+            
         self._proto_to_intent = proto_to_intent
         self._intent_masks = self._build_intent_masks(proto_to_intent, len(labels))
 
@@ -382,6 +422,9 @@ class EmbeddingIntentRecognizer:
         将查询向量与所有 prototype 向量比较，每个意图取最高分。
         使用预计算的 _intent_masks 避免重复扫描。
         """
+        if self._num_intents == 0 or self._proto_embeddings is None or self._proto_embeddings.shape[0] == 0:
+            return
+
         # vec: (1, dim), _proto_embeddings: (total_protos, dim)
         sims = torch.matmul(vec, self._proto_embeddings.T).squeeze(0)  # (total,)
 

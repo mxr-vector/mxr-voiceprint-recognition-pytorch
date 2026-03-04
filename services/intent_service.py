@@ -22,6 +22,7 @@ from mvector.embedding_intent_recognizer import (
     DEFAULT_INTENT_META,
     IntentMeta,
     IntentResult,
+    _save_intent_dict_to_json,
 )
 from services.base import AsyncServiceBase, run_sync
 
@@ -152,8 +153,10 @@ class __IntentService(AsyncServiceBase):
             # _rw_lock 确保更新与推理互斥，防止读取到半更新的 prototype 向量
             async with self._get_async_lock("rw"):
                 await run_sync(recognizer.update_intents, intent_meta)
+            # 持久化到 intent_dict.json，重启后生效
+            await run_sync(_save_intent_dict_to_json, intent_meta)
             count = len(recognizer.intent_labels)
-            logger.info(f"[IntentService] 意图字典更新完成，共 {count} 个意图")
+            logger.info(f"[IntentService] 意图字典更新并持久化完成，共 {count} 个意图")
             return count
         except Exception as e:
             logger.error(f"[IntentService] 意图字典更新失败: {e}")
