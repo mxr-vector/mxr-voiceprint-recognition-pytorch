@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 
 from services import singleIntentService
 from mvector.embedding_intent_recognizer import IntentMeta
+from core.config import args
 from core.response import R
 
 # 创建路由
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/intent", tags=["OpenAPI - 意图识别开放接口"]
 class IntentRecognitionRequest(BaseModel):
     text: str = Field(..., description="待识别的语音指令文本（支持中英文混合）")
     threshold: float = Field(
-        default=0.55, ge=0.0, le=1.0, description="余弦相似度阈值，默认 0.55"
+        default=None, ge=0.0, le=1.0, description="余弦相似度阈值，不传则使用配置默认值"
     )
 
     model_config = {
