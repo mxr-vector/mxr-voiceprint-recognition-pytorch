@@ -30,7 +30,6 @@ dependencies = [
     "visualdl==2.5.3",
     "yeaudio>=0.0.7",
     "setuptools>=80.9.0",
-    "mvector>=1.1.6",
 ]
 
 
