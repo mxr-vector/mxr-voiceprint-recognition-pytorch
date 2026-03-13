@@ -185,23 +185,17 @@
 - 首先安装的是 Pytorch 的 GPU 版本，如果已经安装过了，请跳过。
 
 ```shell
-conda install pytorch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 pytorch-cuda=11.8 -c pytorch -c nvidia
-```
+# 启动
+# uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+# 支持cpu
+uv sync --extra cpu
+# 支持cuda
+uv sync --extra cu128
+# 另外transformers5和4的api变化有些不同，你可以 transformers==4.57.6指定版本
+uv pip install transformers==4.57.6 qwen-asr
 
-- 安装 ppvector 库。
-
-使用 pip 安装，命令如下：
-
-```shell
-python -m pip install mvector -U -i https://pypi.tuna.tsinghua.edu.cn/simple
-```
-
-**建议源码安装**，源码安装能保证使用最新代码。
-
-```shell
-git clone https://github.com/yeyupiaoling/VoiceprintRecognition-Pytorch.git
-cd VoiceprintRecognition-Pytorch/
-pip install .
+# uv pip install flash-attn --no-build-isolation
+uv run infer.py
 ```
 
 # 创建数据

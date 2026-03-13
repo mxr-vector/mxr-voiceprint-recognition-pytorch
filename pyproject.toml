@@ -30,26 +30,27 @@ dependencies = [
     "visualdl==2.5.3",
     "yeaudio>=0.0.7",
     "setuptools>=80.9.0",
+    "mvector>=1.1.6",
 ]
 
 
 # 指定 extra 依赖
 [project.optional-dependencies]
 cpu = [
-  "torch==2.9.0+cpu",
-  "torchvision==0.24.0+cpu",
-  "torchaudio==2.9.0+cpu",
+  "torch==2.9.1+cpu",
+  "torchvision==0.24.1+cpu",
+  "torchaudio==2.9.1+cpu",
 ]
 cu128 = [
-  "torch==2.9.0+cu128",
-  "torchvision==0.24.0+cu128",
-  "torchaudio==2.9.0+cu128",
+  "torch==2.9.1+cu128",
+  "torchvision==0.24.1+cu128",
+  "torchaudio==2.9.1+cu128",
 ]
 # 兼容5080+
 cu130 = [
-  "torch==2.9.0+cu130",
-  "torchvision==0.24.0+cu130",
-  "torchaudio==2.9.0+cu130",
+  "torch==2.9.1+cu130",
+  "torchvision==0.24.1+cu130",
+  "torchaudio==2.9.1+cu130",
 ]
 
 [tool.uv]
