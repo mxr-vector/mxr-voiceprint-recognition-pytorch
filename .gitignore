@@ -12,7 +12,6 @@ models/
 feature_models/
 # Ignore VSCode settings
 .vscode/
-uv.lock
 .venv/
 logs/
 *.tar
