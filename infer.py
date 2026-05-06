@@ -7,6 +7,7 @@ from core.middleware_access_log import AccessLogMiddleware
 from core.logger import logger
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from core.config import args
 
 
@@ -45,6 +46,17 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
+
+@app.get("/", summary="静态首页", include_in_schema=False)
+async def root():
+    return FileResponse("static/index.html")
+
+
+@app.get("/favicon.ico", summary="图标", include_in_schema=False)
+async def favicon():
+    return FileResponse("static/favicon.ico")
+
 
 # 启动（仅本地调试用）
 if __name__ == "__main__":
